@@ -1,4 +1,6 @@
+import 'dart:async';
 import 'dart:convert';
+import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -23,12 +25,23 @@ final profileProvider = FutureProvider<UserProfile?>((ref) async {
   if (user == null) return null;
   final supabase = ref.watch(supabaseProvider);
   final data =
-      await supabase.from('profiles').select().eq('id', user.id).single();
+      await supabase.from('profiles').select().eq('id', user.id).maybeSingle();
+  if (data == null) return null;
   return UserProfile.fromMap(data);
 });
 
+// ─── Theme ────────────────────────────────────────────────────────────────────
+final themeModeProvider = StateProvider<ThemeMode>((ref) => ThemeMode.light);
+
 // ─── Gold Price ───────────────────────────────────────────────────────────────
 final goldPriceProvider = FutureProvider<GoldPrice>((ref) async {
+  ref.keepAlive();
+
+  // Refresh every 60 seconds
+  final timer = Timer.periodic(const Duration(seconds: 60), (_) {
+    ref.invalidateSelf();
+  });
+  ref.onDispose(timer.cancel);
   // Step 1: Get XAU/USD from GoldAPI
   final goldRes = await http.get(
     Uri.parse('https://www.goldapi.io/api/XAU/USD'),
@@ -66,9 +79,43 @@ final walletProvider = FutureProvider<Wallet?>((ref) async {
   final user = ref.watch(currentUserProvider);
   if (user == null) return null;
   final supabase = ref.watch(supabaseProvider);
-  final data =
-      await supabase.from('wallets').select().eq('user_id', user.id).single();
+  final data = await supabase
+      .from('wallets')
+      .select()
+      .eq('user_id', user.id)
+      .maybeSingle();
+  if (data == null) return null;
   return Wallet.fromMap(data);
+});
+
+// ─── First-login Setup (idempotent row creation) ───────────────────────────────
+final firstLoginSetupProvider = FutureProvider<void>((ref) async {
+  final user = ref.watch(currentUserProvider);
+  if (user == null) return;
+  final supabase = ref.watch(supabaseProvider);
+  await Future.wait([
+    supabase.from('profiles').upsert({
+      'id': user.id,
+      'full_name': user.userMetadata?['full_name'] ?? '',
+    }, onConflict: 'id'),
+    supabase.from('wallets').upsert({
+      'user_id': user.id,
+      'balance_sek': 0.0,
+      'gold_grams': 0.0,
+    }, onConflict: 'user_id'),
+    supabase.from('notification_preferences').upsert({
+      'user_id': user.id,
+      'push_price_alerts': true,
+      'push_transaction_updates': true,
+      'push_promotions': false,
+      'email_weekly_reports': true,
+      'email_monthly_statements': true,
+      'email_security_alerts': true,
+      'email_product_updates': false,
+      'sms_enabled': false,
+      'sms_transaction_updates': false,
+    }, onConflict: 'user_id'),
+  ]);
 });
 
 // ─── Transactions ─────────────────────────────────────────────────────────────
@@ -150,6 +197,140 @@ class NotificationPrefsNotifier
   }
 }
 
+// ─── Selected Payment Method (shared between BuyGoldScreen and sub-screens) ───
+final selectedPaymentMethodProvider = StateProvider<String>((ref) => 'wallet');
+
+// ─── Gold Transaction Service ──────────────────────────────────────────────────
+final goldTransactionServiceProvider = Provider<GoldTransactionService>((ref) {
+  return GoldTransactionService(ref.watch(supabaseProvider), ref);
+});
+
+class GoldTransactionService {
+  final SupabaseClient _supabase;
+  final Ref _ref;
+
+  GoldTransactionService(this._supabase, this._ref);
+
+  static String _paymentToDb(String method) {
+    if (method == 'card') return 'credit_card';
+    if (method == 'bank') return 'bank_transfer';
+    return 'wallet';
+  }
+
+  Future<void> buyGoldOnetime({
+    required double amountSek,
+    required double goldGrams,
+    required double goldPricePerGramSek,
+    required String paymentMethod,
+  }) async {
+    if (_ref.read(currentUserProvider) == null) throw Exception('Not authenticated');
+    await _supabase.rpc('rpc_buy_gold', params: {
+      'p_gold_grams': goldGrams,
+      'p_amount_sek': amountSek,
+      'p_price_per_gram': goldPricePerGramSek,
+      'p_payment_method': _paymentToDb(paymentMethod),
+    });
+    _ref.invalidate(walletProvider);
+    _ref.invalidate(transactionsProvider);
+  }
+
+  Future<void> createRecurringSubscription({
+    required double amountSek,
+    required String frequency,
+    required List<String> selectedDays,
+    required String paymentMethod,
+  }) async {
+    final user = _ref.read(currentUserProvider);
+    if (user == null) throw Exception('Not authenticated');
+    final dbFreq = frequency.toLowerCase();
+    final now = DateTime.now();
+    final nextDate = dbFreq == 'daily'
+        ? now.add(const Duration(days: 1))
+        : dbFreq == 'weekly'
+            ? now.add(const Duration(days: 7))
+            : DateTime(now.year, now.month + 1, 1);
+    await _supabase.from('subscriptions').insert({
+      'user_id': user.id,
+      'amount_sek': amountSek,
+      'frequency': dbFreq,
+      'days_of_week': dbFreq == 'weekly' ? selectedDays : null,
+      'day_of_month': dbFreq == 'monthly' ? 1 : null,
+      'payment_method': _paymentToDb(paymentMethod),
+      'is_active': true,
+      'next_payment_date': nextDate.toIso8601String(),
+    });
+    _ref.invalidate(subscriptionsProvider);
+  }
+
+  Future<void> sellGold({
+    required double goldGrams,
+    required double goldPricePerGramSek,
+  }) async {
+    if (_ref.read(currentUserProvider) == null) throw Exception('Not authenticated');
+    await _supabase.rpc('rpc_sell_gold', params: {
+      'p_gold_grams': goldGrams,
+      'p_price_per_gram': goldPricePerGramSek,
+    });
+    _ref.invalidate(walletProvider);
+    _ref.invalidate(transactionsProvider);
+  }
+
+  Future<void> addFunds({
+    required double amountSek,
+    required String paymentMethod,
+  }) async {
+    if (_ref.read(currentUserProvider) == null) throw Exception('Not authenticated');
+    await _supabase.rpc('rpc_add_funds', params: {
+      'p_amount_sek': amountSek,
+      'p_payment_method': _paymentToDb(paymentMethod),
+    });
+    _ref.invalidate(walletProvider);
+    _ref.invalidate(transactionsProvider);
+  }
+
+  Future<void> sendGift({
+    required double amountSek,
+    required double goldGrams,
+    required String recipientName,
+    required String recipientEmail,
+    required double goldPricePerGramSek,
+    required bool isSEKMode,
+  }) async {
+    if (_ref.read(currentUserProvider) == null) throw Exception('Not authenticated');
+    await _supabase.rpc('rpc_send_gift', params: {
+      'p_amount_sek': isSEKMode ? amountSek : goldGrams * goldPricePerGramSek,
+      'p_gold_grams': isSEKMode ? amountSek / goldPricePerGramSek : goldGrams,
+      'p_recipient_name': recipientName,
+      'p_recipient_email': recipientEmail,
+      'p_price_per_gram': goldPricePerGramSek,
+      'p_is_sek_mode': isSEKMode,
+    });
+    _ref.invalidate(walletProvider);
+    _ref.invalidate(transactionsProvider);
+  }
+
+  Future<void> cancelSubscription(String subscriptionId) async {
+    await _supabase
+        .from('subscriptions')
+        .update({'is_active': false})
+        .eq('id', subscriptionId);
+    _ref.invalidate(subscriptionsProvider);
+  }
+
+  Future<void> requestDelivery({
+    required double goldGrams,
+    required String deliveryAddress,
+  }) async {
+    if (_ref.read(currentUserProvider) == null) throw Exception('Not authenticated');
+    await _supabase.rpc('rpc_request_delivery', params: {
+      'p_gold_grams': goldGrams,
+      'p_delivery_address': deliveryAddress,
+    });
+    _ref.invalidate(walletProvider);
+    _ref.invalidate(transactionsProvider);
+  }
+}
+
 // ─── Auth Notifier ────────────────────────────────────────────────────────────
 final authNotifierProvider = Provider<AuthNotifier>((ref) {
   return AuthNotifier(ref.watch(supabaseProvider));
@@ -181,5 +362,9 @@ class AuthNotifier {
 
   Future<void> updatePassword(String newPassword) async {
     await _supabase.auth.updateUser(UserAttributes(password: newPassword));
+  }
+
+  Future<void> resetPassword(String email) async {
+    await _supabase.auth.resetPasswordForEmail(email);
   }
 }

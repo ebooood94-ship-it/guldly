@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:guldly/core/constants/app_constants.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../../core/providers/providers.dart';
 import '../../widgets/common/back_header.dart';
 import 'package:intl/intl.dart';
 import '../../widgets/common/gold_card.dart';
@@ -43,6 +44,8 @@ class _CalculatorScreenState extends ConsumerState<CalculatorScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final goldAsync = ref.watch(goldPriceProvider);
+
     return Scaffold(
       backgroundColor: AppConstants.background,
       body: SafeArea(
@@ -53,7 +56,37 @@ class _CalculatorScreenState extends ConsumerState<CalculatorScreen> {
             children: [
               const SizedBox(height: 16),
               const BackHeader(title: 'Calculator'),
-              const SizedBox(height: 24),
+              const SizedBox(height: 16),
+              goldAsync.when(
+                data: (g) => Container(
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 14, vertical: 10),
+                  decoration: BoxDecoration(
+                    color: AppConstants.gold.withValues(alpha: 0.08),
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(
+                        color: AppConstants.gold.withValues(alpha: 0.2)),
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Text('Live gold price',
+                          style: TextStyle(
+                              fontSize: 13, color: AppConstants.subtitle)),
+                      Text(
+                        'kr.${NumberFormat('#,###.##').format(g.pricePerGramSek)}/g',
+                        style: const TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
+                            color: AppConstants.gold),
+                      ),
+                    ],
+                  ),
+                ),
+                loading: () => const SizedBox.shrink(),
+                error: (_, __) => const SizedBox.shrink(),
+              ),
+              const SizedBox(height: 16),
               GoldCard(
                 child: Padding(
                   padding: const EdgeInsets.all(16),

@@ -19,6 +19,7 @@ import '../../presentation/screens/more/calculator_screen.dart';
 import '../../presentation/screens/sell/sell_screen.dart';
 import '../../presentation/screens/gift/gift_screen.dart';
 import '../../presentation/screens/delivery/delivery_screen.dart';
+import '../../presentation/screens/transaction/receipt_screen.dart';
 import '../providers/providers.dart';
 
 // Route name constants
@@ -41,6 +42,7 @@ class Routes {
   static const sell = '/sell';
   static const gift = '/gift';
   static const delivery = '/delivery';
+  static const receipt = '/receipt';
 }
 
 final routerProvider = Provider<GoRouter>((ref) {
@@ -153,6 +155,13 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: Routes.delivery,
         builder: (_, __) => const DeliveryScreen(),
+      ),
+
+      // ── Transaction receipt ────────────────────────────────────────────────
+      GoRoute(
+        path: Routes.receipt,
+        builder: (_, state) =>
+            ReceiptScreen(data: (state.extra as Map<String, dynamic>?) ?? {}),
       ),
     ],
   );

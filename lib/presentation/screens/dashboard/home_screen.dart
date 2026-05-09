@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:intl/intl.dart';
 import '../../../core/constants/app_constants.dart';
+import '../../../core/providers/providers.dart';
+import '../../../core/router/router.dart';
 import '../../widgets/gold/gold_chart.dart';
 import '../../widgets/gold/gold_logo.dart';
 import '../../widgets/gold/icon_btn.dart';
@@ -20,6 +23,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final walletAsync = ref.watch(walletProvider);
+    final goldAsync = ref.watch(goldPriceProvider);
+
     return Scaffold(
       backgroundColor: AppConstants.background,
       body: SafeArea(
@@ -31,14 +37,14 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               const SizedBox(height: 12),
               _buildTopBar(),
               const SizedBox(height: 28),
-              _buildPortfolioHeader(),
+              _buildPortfolioHeader(walletAsync, goldAsync),
               const SizedBox(height: 24),
               GoldChart(
                 selectedPeriod: _selectedPeriod,
                 onPeriodChanged: (p) => setState(() => _selectedPeriod = p),
               ),
               const SizedBox(height: 16),
-              _buildPortfolioCards(),
+              _buildPortfolioCards(walletAsync, goldAsync),
               const SizedBox(height: 28),
               _buildQuickActions(),
               const SizedBox(height: 24),
@@ -50,10 +56,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   }
 
   Widget _buildTopBar() {
-    return const Row(
+    final isDark = ref.watch(themeModeProvider) == ThemeMode.dark;
+    return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
-        Row(
+        const Row(
           children: [
             GoldLogo(),
             SizedBox(width: 8),
@@ -70,16 +77,30 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         ),
         Row(
           children: [
-            IconBtn(icon: Icons.dark_mode_outlined),
-            SizedBox(width: 8),
-            IconBtn(icon: Icons.notifications_outlined),
+            IconBtn(
+              icon: isDark
+                  ? Icons.light_mode_outlined
+                  : Icons.dark_mode_outlined,
+              onTap: () => ref.read(themeModeProvider.notifier).state =
+                  isDark ? ThemeMode.light : ThemeMode.dark,
+            ),
+            const SizedBox(width: 8),
+            IconBtn(
+              icon: Icons.notifications_outlined,
+              onTap: () => context.push(Routes.notifications),
+            ),
           ],
         ),
       ],
     );
   }
 
-  Widget _buildPortfolioHeader() {
+  Widget _buildPortfolioHeader(walletAsync, goldAsync) {
+    final wallet = walletAsync.value;
+    final gold = goldAsync.value;
+    final value = (wallet?.goldGrams ?? 0) * (gold?.pricePerGramSek ?? 0);
+    final grams = wallet?.goldGrams ?? 0;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -92,19 +113,28 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           ),
         ),
         const SizedBox(height: 4),
-        const Text(
-          'kr.525,000',
-          style: TextStyle(
-            color: AppConstants.black,
-            fontSize: 38,
-            fontWeight: FontWeight.w700,
-            letterSpacing: -1,
-          ),
-        ),
+        walletAsync.isLoading || goldAsync.isLoading
+            ? Container(
+                height: 46,
+                width: 180,
+                decoration: BoxDecoration(
+                  color: Colors.grey.shade200,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+              )
+            : Text(
+                'kr.${NumberFormat('#,###').format(value)}',
+                style: const TextStyle(
+                  color: AppConstants.black,
+                  fontSize: 38,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: -1,
+                ),
+              ),
         const SizedBox(height: 4),
-        const Text(
-          '487.4g of Gold',
-          style: TextStyle(
+        Text(
+          '${grams.toStringAsFixed(1)}g of Gold',
+          style: const TextStyle(
             color: AppConstants.gold,
             fontSize: 15,
             fontWeight: FontWeight.w600,
@@ -116,47 +146,49 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             const Icon(Icons.trending_up_rounded,
                 color: AppConstants.green, size: 18),
             const SizedBox(width: 4),
-            RichText(
-              text: const TextSpan(
-                style: TextStyle(fontSize: 13),
-                children: [
-                  TextSpan(
-                    text: '+2.47% (kr12,962.88) ',
-                    style: TextStyle(
-                      color: AppConstants.green,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                  TextSpan(
-                    text: 'vs last month',
-                    style: TextStyle(color: AppConstants.subtitle),
-                  ),
-                ],
-              ),
+            const Text(
+              'Live pricing',
+              style: TextStyle(color: AppConstants.subtitle, fontSize: 13),
             ),
+            if (gold != null) ...[
+              const SizedBox(width: 6),
+              Text(
+                'kr.${NumberFormat('#,###.##').format(gold.pricePerGramSek)}/g',
+                style: const TextStyle(
+                  color: AppConstants.green,
+                  fontWeight: FontWeight.w600,
+                  fontSize: 13,
+                ),
+              ),
+            ],
           ],
         ),
       ],
     );
   }
 
-  Widget _buildPortfolioCards() {
-    return const Row(
+  Widget _buildPortfolioCards(walletAsync, goldAsync) {
+    final wallet = walletAsync.value;
+    final gold = goldAsync.value;
+    final grams = wallet?.goldGrams ?? 0;
+    final value = grams * (gold?.pricePerGramSek ?? 0);
+
+    return Row(
       children: [
         Expanded(
           child: PortfolioCard(
             backgroundColor: AppConstants.gold,
             label: 'Gold',
-            value: '487.4 g',
+            value: '${grams.toStringAsFixed(1)} g',
             textColor: Colors.white,
           ),
         ),
-        SizedBox(width: 12),
+        const SizedBox(width: 12),
         Expanded(
           child: PortfolioCard(
             backgroundColor: AppConstants.black,
             label: 'Value',
-            value: 'kr.525,000',
+            value: 'kr.${NumberFormat('#,###').format(value)}',
             textColor: Colors.white,
           ),
         ),

@@ -1,11 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import '../../../core/constants/app_constants.dart';
+import '../../../core/providers/providers.dart';
+import '../../../core/router/router.dart';
+import '../../../core/services/stripe_service.dart';
 import '../../widgets/common/back_header.dart';
 import '../../widgets/common/gold_button.dart';
 import '../../widgets/common/gold_card.dart';
+import '../../widgets/gold/live_badge.dart';
 
 class BuyOnetimeScreen extends ConsumerStatefulWidget {
   const BuyOnetimeScreen({super.key});
@@ -16,23 +21,62 @@ class BuyOnetimeScreen extends ConsumerStatefulWidget {
 
 class _BuyOnetimeScreenState extends ConsumerState<BuyOnetimeScreen> {
   int _amountKr = 0;
-  static const double _pricePerOz = 25796.19;
-  static const double _gramsPerOz = 31.1035;
+  bool _loading = false;
   static const List<int> _suggestions = [100, 250, 500, 1000, 2500, 5000];
-
-  double get _grams =>
-      _amountKr == 0 ? 0 : (_amountKr / _pricePerOz) * _gramsPerOz;
-
-  String get _gramsLabel =>
-      _grams == 0 ? '≈0g' : '≈${_grams.toStringAsFixed(2)}g';
 
   void _tap(int amount) {
     HapticFeedback.lightImpact();
     setState(() => _amountKr = amount);
   }
 
+  Future<void> _onContinue(double pricePerGramSek) async {
+    final paymentMethod = ref.read(selectedPaymentMethodProvider);
+    setState(() => _loading = true);
+    try {
+      if (paymentMethod == 'card') {
+        final paid = await StripeService.pay(
+          amountSek: _amountKr.toDouble(),
+          supabase: ref.read(supabaseProvider),
+        );
+        if (!paid) return; // user cancelled — no error shown
+      }
+      await ref.read(goldTransactionServiceProvider).buyGoldOnetime(
+            amountSek: _amountKr.toDouble(),
+            goldGrams: _amountKr / pricePerGramSek,
+            goldPricePerGramSek: pricePerGramSek,
+            paymentMethod: paymentMethod,
+          );
+      if (mounted) {
+        context.go(Routes.receipt, extra: {
+          'type': 'Buy Gold',
+          'amountSek': _amountKr.toDouble(),
+          'goldGrams': _amountKr / pricePerGramSek,
+          'goldPricePerGramSek': pricePerGramSek,
+          'paymentMethod': paymentMethod,
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(e.toString().replaceFirst('Exception: ', '')),
+            backgroundColor: AppConstants.error,
+            duration: const Duration(seconds: 3),
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
+    final goldAsync = ref.watch(goldPriceProvider);
+    final pricePerGramSek = goldAsync.value?.pricePerGramSek ?? 0;
+    final grams = pricePerGramSek > 0 ? _amountKr / pricePerGramSek : 0.0;
+    final gramsLabel = grams == 0 ? '≈0g' : '≈${grams.toStringAsFixed(2)}g';
+
     return Scaffold(
       backgroundColor: AppConstants.background,
       body: SafeArea(
@@ -56,7 +100,7 @@ class _BuyOnetimeScreenState extends ConsumerState<BuyOnetimeScreen> {
                       ),
                     ),
                     const SizedBox(height: 12),
-                    GoldCard(child: _buildAmountContent()),
+                    GoldCard(child: _buildAmountContent(goldAsync, gramsLabel)),
                     const SizedBox(height: 24),
                   ],
                 ),
@@ -66,7 +110,10 @@ class _BuyOnetimeScreenState extends ConsumerState<BuyOnetimeScreen> {
               padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
               child: GoldButton(
                 label: 'Continue',
-                onPressed: _amountKr > 0 ? () {} : null,
+                loading: _loading,
+                onPressed: (_amountKr > 0 && !_loading && pricePerGramSek > 0)
+                    ? () => _onContinue(pricePerGramSek)
+                    : null,
               ),
             ),
           ],
@@ -75,13 +122,12 @@ class _BuyOnetimeScreenState extends ConsumerState<BuyOnetimeScreen> {
     );
   }
 
-  Widget _buildAmountContent() {
+  Widget _buildAmountContent(goldAsync, String gramsLabel) {
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 14, 16, 20),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Gold info row
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
@@ -99,15 +145,21 @@ class _BuyOnetimeScreenState extends ConsumerState<BuyOnetimeScreen> {
                   const SizedBox(height: 3),
                   Row(
                     children: [
-                      const Text(
-                        'kr.25,796.19',
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: AppConstants.subtitle,
+                      goldAsync.when(
+                        data: (g) => Text(
+                          'kr.${NumberFormat('#,###.##').format(g.pricePerGramSek)}/g',
+                          style: const TextStyle(
+                              fontSize: 12, color: AppConstants.subtitle),
                         ),
+                        loading: () => const Text('Loading...',
+                            style: TextStyle(
+                                fontSize: 12, color: AppConstants.subtitle)),
+                        error: (_, __) => const Text('—',
+                            style: TextStyle(
+                                fontSize: 12, color: AppConstants.subtitle)),
                       ),
                       const SizedBox(width: 6),
-                      _LiveBadge(),
+                      const LiveBadge(),
                     ],
                   ),
                 ],
@@ -119,18 +171,12 @@ class _BuyOnetimeScreenState extends ConsumerState<BuyOnetimeScreen> {
                   color: AppConstants.gold.withValues(alpha: 0.12),
                   borderRadius: BorderRadius.circular(10),
                 ),
-                child: const Icon(
-                  Icons.layers_rounded,
-                  color: AppConstants.gold,
-                  size: 20,
-                ),
+                child: const Icon(Icons.layers_rounded,
+                    color: AppConstants.gold, size: 20),
               ),
             ],
           ),
-
           const SizedBox(height: 20),
-
-          // Big amount display
           Center(
             child: Column(
               children: [
@@ -153,19 +199,14 @@ class _BuyOnetimeScreenState extends ConsumerState<BuyOnetimeScreen> {
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  _gramsLabel,
+                  gramsLabel,
                   style: const TextStyle(
-                    fontSize: 13,
-                    color: AppConstants.subtitle,
-                  ),
+                      fontSize: 13, color: AppConstants.subtitle),
                 ),
               ],
             ),
           ),
-
           const SizedBox(height: 20),
-
-          // Quick suggestions
           const Text(
             'Quick suggestion',
             style: TextStyle(fontSize: 13, color: AppConstants.subtitle),
@@ -198,77 +239,15 @@ class _BuyOnetimeScreenState extends ConsumerState<BuyOnetimeScreen> {
                     'kr.${NumberFormat('#,###').format(amt)}',
                     style: TextStyle(
                       fontSize: 13,
-                      fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
-                      color: selected ? AppConstants.gold : AppConstants.black,
+                      fontWeight:
+                          selected ? FontWeight.w600 : FontWeight.w400,
+                      color:
+                          selected ? AppConstants.gold : AppConstants.black,
                     ),
                   ),
                 ),
               );
             }).toList(),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-// ─── Live Badge ───────────────────────────────────────────────────────────────
-class _LiveBadge extends StatefulWidget {
-  @override
-  State<_LiveBadge> createState() => _LiveBadgeState();
-}
-
-class _LiveBadgeState extends State<_LiveBadge>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController _ctrl;
-  late final Animation<double> _pulse;
-
-  @override
-  void initState() {
-    super.initState();
-    _ctrl = AnimationController(
-      vsync: this,
-      duration: const Duration(seconds: 1),
-    )..repeat(reverse: true);
-    _pulse = Tween<double>(begin: 0.4, end: 1.0).animate(_ctrl);
-  }
-
-  @override
-  void dispose() {
-    _ctrl.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
-      decoration: BoxDecoration(
-        color: AppConstants.green.withValues(alpha: 0.12),
-        borderRadius: BorderRadius.circular(20),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          FadeTransition(
-            opacity: _pulse,
-            child: Container(
-              width: 6,
-              height: 6,
-              decoration: const BoxDecoration(
-                color: AppConstants.green,
-                shape: BoxShape.circle,
-              ),
-            ),
-          ),
-          const SizedBox(width: 4),
-          const Text(
-            'Live',
-            style: TextStyle(
-              fontSize: 11,
-              fontWeight: FontWeight.w600,
-              color: AppConstants.green,
-            ),
           ),
         ],
       ),

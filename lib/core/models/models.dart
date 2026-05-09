@@ -133,6 +133,11 @@ class Transaction {
       goldPricePerGramSek: map['gold_price_per_gram_sek'] != null
           ? (map['gold_price_per_gram_sek'] as num).toDouble()
           : null,
+      paymentMethod: map['payment_method'] != null
+          ? PaymentMethod.values.byName(
+              _snakeToCamel(map['payment_method'] as String),
+            )
+          : null,
       recipientName: map['recipient_name'] as String?,
       recipientEmail: map['recipient_email'] as String?,
       deliveryAddress: map['delivery_address'] as String?,

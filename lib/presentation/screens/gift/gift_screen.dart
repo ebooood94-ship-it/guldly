@@ -1,12 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:guldly/core/constants/app_constants.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import '../../widgets/common/back_header.dart';
 import '../../widgets/common/gold_text_field.dart';
 import 'package:intl/intl.dart';
 import '../../widgets/common/field_label.dart';
 import '../../widgets/common/projection_row.dart';
 import '../../../core/providers/providers.dart';
+import '../../../core/router/router.dart';
 import '../../widgets/common/gold_card.dart';
 import '../../widgets/common/gold_button.dart';
 import '../../widgets/common/tab_button.dart';
@@ -19,13 +21,65 @@ class GiftScreen extends ConsumerStatefulWidget {
 }
 
 class _GiftScreenState extends ConsumerState<GiftScreen> {
-  bool _isSEK = false; // false = Gold tab
+  bool _isSEK = false;
   double _grams = 0;
   int _amountSek = 0;
+  bool _loading = false;
   final _nameCtrl = TextEditingController();
   final _emailCtrl = TextEditingController();
   static const _gramSuggestions = [15.0, 31.0, 62.0, 155.0];
   static const _sekSuggestions = [100, 250, 500, 1000];
+
+  Future<void> _onContinue(double goldPricePerGramSek) async {
+    if (_nameCtrl.text.trim().isEmpty || _emailCtrl.text.trim().isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Please fill in recipient details'),
+          backgroundColor: AppConstants.error,
+        ),
+      );
+      return;
+    }
+    setState(() => _loading = true);
+    try {
+      await ref.read(goldTransactionServiceProvider).sendGift(
+            amountSek: _amountSek.toDouble(),
+            goldGrams: _grams,
+            recipientName: _nameCtrl.text.trim(),
+            recipientEmail: _emailCtrl.text.trim(),
+            goldPricePerGramSek: goldPricePerGramSek,
+            isSEKMode: _isSEK,
+          );
+      if (mounted) {
+        final effectiveAmountSek = _isSEK
+            ? _amountSek.toDouble()
+            : _grams * goldPricePerGramSek;
+        final effectiveGrams = _isSEK
+            ? _amountSek / goldPricePerGramSek
+            : _grams;
+        context.go(Routes.receipt, extra: {
+          'type': 'Gift Sent',
+          'amountSek': effectiveAmountSek,
+          'goldGrams': effectiveGrams,
+          'goldPricePerGramSek': goldPricePerGramSek,
+          'recipientName': _nameCtrl.text.trim(),
+          'recipientEmail': _emailCtrl.text.trim(),
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(e.toString().replaceFirst('Exception: ', '')),
+            backgroundColor: AppConstants.error,
+            duration: const Duration(seconds: 3),
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -91,9 +145,9 @@ class _GiftScreenState extends ConsumerState<GiftScreen> {
                                               fontWeight: FontWeight.w600,
                                               fontSize: 14)),
                                       walletAsync.when(
-                                        data: (w) => const Text(
-                                            'Avl Au = (w?.goldGrams ?? 0) * (g?.pricePerGramSek ?? 0)',
-                                            style: TextStyle(
+                                        data: (w) => Text(
+                                            'Avl Au = ${(w?.goldGrams ?? 0).toStringAsFixed(1)}g',
+                                            style: const TextStyle(
                                                 fontSize: 12,
                                                 color: AppConstants.subtitle)),
                                         loading: () => const Text('Loading...'),
@@ -264,7 +318,22 @@ class _GiftScreenState extends ConsumerState<GiftScreen> {
             ),
             Padding(
               padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
-              child: GoldButton(label: 'Continue', onPressed: () {}),
+              child: goldAsync.when(
+                data: (g) {
+                  final hasAmount = _isSEK ? _amountSek > 0 : _grams > 0;
+                  return GoldButton(
+                    label: 'Continue',
+                    loading: _loading,
+                    onPressed: (hasAmount && !_loading)
+                        ? () => _onContinue(g.pricePerGramSek)
+                        : null,
+                  );
+                },
+                loading: () =>
+                    const GoldButton(label: 'Continue', onPressed: null),
+                error: (_, __) =>
+                    const GoldButton(label: 'Continue', onPressed: null),
+              ),
             ),
           ],
         ),

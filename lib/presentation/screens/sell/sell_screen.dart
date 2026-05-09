@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:guldly/core/constants/app_constants.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import '../../../core/providers/providers.dart';
+import '../../../core/router/router.dart';
 import '../../widgets/common/gold_card.dart';
 import '../../widgets/common/gold_button.dart';
 import '../../widgets/common/back_header.dart';
@@ -16,7 +18,38 @@ class SellScreen extends ConsumerStatefulWidget {
 
 class _SellScreenState extends ConsumerState<SellScreen> {
   double _grams = 0;
+  bool _loading = false;
   static const _suggestions = [10.0, 25.0, 50.0, 100.0];
+
+  Future<void> _onContinue(double pricePerGramSek) async {
+    setState(() => _loading = true);
+    try {
+      await ref.read(goldTransactionServiceProvider).sellGold(
+            goldGrams: _grams,
+            goldPricePerGramSek: pricePerGramSek,
+          );
+      if (mounted) {
+        context.go(Routes.receipt, extra: {
+          'type': 'Sell Gold',
+          'amountSek': _grams * pricePerGramSek,
+          'goldGrams': _grams,
+          'goldPricePerGramSek': pricePerGramSek,
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(e.toString().replaceFirst('Exception: ', '')),
+            backgroundColor: AppConstants.error,
+            duration: const Duration(seconds: 3),
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -163,8 +196,19 @@ class _SellScreenState extends ConsumerState<SellScreen> {
             ),
             Padding(
               padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
-              child: GoldButton(
-                  label: 'Continue', onPressed: _grams > 0 ? () {} : null),
+              child: goldAsync.when(
+                data: (g) => GoldButton(
+                  label: 'Continue',
+                  loading: _loading,
+                  onPressed: (_grams > 0 && !_loading)
+                      ? () => _onContinue(g.pricePerGramSek)
+                      : null,
+                ),
+                loading: () =>
+                    const GoldButton(label: 'Continue', onPressed: null),
+                error: (_, __) =>
+                    const GoldButton(label: 'Continue', onPressed: null),
+              ),
             ),
           ],
         ),

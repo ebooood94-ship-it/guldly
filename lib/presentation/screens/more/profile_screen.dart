@@ -33,6 +33,13 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final profileAsync = ref.watch(profileProvider);
+    final profile = profileAsync.value;
+    final name = profile?.fullName ?? '';
+    final initials = name.trim().isEmpty
+        ? '?'
+        : name.trim().split(' ').map((w) => w[0]).take(2).join().toUpperCase();
+
     return Scaffold(
       backgroundColor: AppConstants.background,
       body: SafeArea(
@@ -47,6 +54,43 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
+                    Center(
+                      child: Column(
+                        children: [
+                          Container(
+                            width: 80,
+                            height: 80,
+                            decoration: BoxDecoration(
+                              color: AppConstants.gold.withValues(alpha: 0.15),
+                              shape: BoxShape.circle,
+                              border: Border.all(
+                                  color: AppConstants.gold, width: 2),
+                            ),
+                            child: Center(
+                              child: Text(
+                                initials,
+                                style: const TextStyle(
+                                  fontSize: 28,
+                                  fontWeight: FontWeight.w700,
+                                  color: AppConstants.gold,
+                                ),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 10),
+                          if (name.isNotEmpty)
+                            Text(
+                              name,
+                              style: const TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w600,
+                                color: AppConstants.black,
+                              ),
+                            ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 28),
                     GoldCard(
                       child: Padding(
                         padding: const EdgeInsets.all(16),

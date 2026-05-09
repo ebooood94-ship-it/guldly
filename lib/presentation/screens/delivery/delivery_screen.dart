@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:guldly/core/constants/app_constants.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import '../../../core/providers/providers.dart';
+import '../../../core/router/router.dart';
 import '../../widgets/common/back_header.dart';
 import '../../widgets/common/gold_card.dart';
 import '../../widgets/common/gold_button.dart';
@@ -19,7 +21,50 @@ class _DeliveryScreenState extends ConsumerState<DeliveryScreen> {
   final _cityCtrl = TextEditingController();
   final _zipCtrl = TextEditingController();
   double _grams = 0;
+  bool _loading = false;
   static const _suggestions = [10.0, 25.0, 50.0, 100.0];
+
+  Future<void> _onContinue() async {
+    final street = _addressCtrl.text.trim();
+    final city = _cityCtrl.text.trim();
+    final zip = _zipCtrl.text.trim();
+    if (street.isEmpty || city.isEmpty || zip.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Please fill in all address fields'),
+          backgroundColor: AppConstants.error,
+        ),
+      );
+      return;
+    }
+    setState(() => _loading = true);
+    try {
+      await ref.read(goldTransactionServiceProvider).requestDelivery(
+            goldGrams: _grams,
+            deliveryAddress: '$street, $city $zip',
+          );
+      if (mounted) {
+        context.go(Routes.receipt, extra: {
+          'type': 'Delivery Requested',
+          'amountSek': 0.0,
+          'goldGrams': _grams,
+          'deliveryAddress': '$street, $city $zip',
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(e.toString().replaceFirst('Exception: ', '')),
+            backgroundColor: AppConstants.error,
+            duration: const Duration(seconds: 3),
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -175,7 +220,10 @@ class _DeliveryScreenState extends ConsumerState<DeliveryScreen> {
             Padding(
               padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
               child: GoldButton(
-                  label: 'Continue', onPressed: _grams > 0 ? () {} : null),
+                label: 'Continue',
+                loading: _loading,
+                onPressed: (_grams > 0 && !_loading) ? _onContinue : null,
+              ),
             ),
           ],
         ),

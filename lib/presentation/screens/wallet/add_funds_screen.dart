@@ -2,7 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:guldly/core/constants/app_constants.dart';
 import '../../widgets/common/gold_button.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import '../../../core/providers/providers.dart';
+import '../../../core/router/router.dart';
+import '../../../core/services/stripe_service.dart';
 import '../../widgets/common/back_header.dart';
 import '../../widgets/common/payment_row.dart';
 import '../../widgets/common/gold_card.dart';
@@ -18,7 +21,44 @@ class AddFundsScreen extends ConsumerStatefulWidget {
 class _AddFundsScreenState extends ConsumerState<AddFundsScreen> {
   int _amountKr = 0;
   String _paymentMethod = 'card';
+  bool _loading = false;
   static const _suggestions = [100, 250, 500, 1000, 2500, 5000];
+
+  Future<void> _onContinue() async {
+    setState(() => _loading = true);
+    try {
+      if (_paymentMethod == 'card') {
+        final paid = await StripeService.pay(
+          amountSek: _amountKr.toDouble(),
+          supabase: ref.read(supabaseProvider),
+        );
+        if (!paid) return; // user cancelled — no error shown
+      }
+      await ref.read(goldTransactionServiceProvider).addFunds(
+            amountSek: _amountKr.toDouble(),
+            paymentMethod: _paymentMethod,
+          );
+      if (mounted) {
+        context.go(Routes.receipt, extra: {
+          'type': 'Add Funds',
+          'amountSek': _amountKr.toDouble(),
+          'paymentMethod': _paymentMethod,
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(e.toString().replaceFirst('Exception: ', '')),
+            backgroundColor: AppConstants.error,
+            duration: const Duration(seconds: 3),
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -187,7 +227,11 @@ class _AddFundsScreenState extends ConsumerState<AddFundsScreen> {
             ),
             Padding(
               padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
-              child: GoldButton(label: 'Continue', onPressed: () {}),
+              child: GoldButton(
+                label: 'Continue',
+                loading: _loading,
+                onPressed: (_amountKr > 0 && !_loading) ? _onContinue : null,
+              ),
             ),
           ],
         ),

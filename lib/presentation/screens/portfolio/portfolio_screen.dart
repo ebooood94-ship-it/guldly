@@ -14,6 +14,7 @@ class PortfolioScreen extends ConsumerWidget {
     final walletAsync = ref.watch(walletProvider);
     final subsAsync = ref.watch(subscriptionsProvider);
     final goldAsync = ref.watch(goldPriceProvider);
+    final txAsync = ref.watch(transactionsProvider);
 
     return Scaffold(
       backgroundColor: AppConstants.background,
@@ -33,17 +34,28 @@ class PortfolioScreen extends ConsumerWidget {
               // Portfolio summary
               walletAsync.when(
                 data: (wallet) => goldAsync.when(
-                  data: (gold) =>
-                      _PortfolioSummary(wallet: wallet, goldPrice: gold),
+                  data: (gold) {
+                    final txs = txAsync.value ?? [];
+                    final totalInvested = txs
+                        .where((t) =>
+                            t.type == TransactionType.buy ||
+                            t.type == TransactionType.recurringBuy)
+                        .fold<double>(0, (sum, t) => sum + t.amountSek);
+                    return _PortfolioSummary(
+                      wallet: wallet,
+                      goldPrice: gold,
+                      totalInvested: totalInvested,
+                    );
+                  },
                   loading: () => const _SummaryCard(
-                      value: 'kr.0', grams: '0g', change: '+0%'),
+                      value: 'kr.0', grams: '0g', change: '—'),
                   error: (_, __) => const _SummaryCard(
-                      value: 'kr.0', grams: '0g', change: '+0%'),
+                      value: 'kr.0', grams: '0g', change: '—'),
                 ),
                 loading: () => const _SummaryCard(
-                    value: 'kr.0', grams: '0g', change: '+0%'),
+                    value: 'kr.0', grams: '0g', change: '—'),
                 error: (_, __) => const _SummaryCard(
-                    value: 'kr.0', grams: '0g', change: '+0%'),
+                    value: 'kr.0', grams: '0g', change: '—'),
               ),
               const SizedBox(height: 20),
               // Deposit vs current value card
@@ -60,12 +72,20 @@ class PortfolioScreen extends ConsumerWidget {
                               style: TextStyle(
                                   fontSize: 12, color: AppConstants.subtitle)),
                           const SizedBox(height: 4),
-                          walletAsync.when(
-                            data: (w) => Text(
-                              'kr.${NumberFormat('#,###').format((w?.goldGrams ?? 0) * 350)}',
-                              style: const TextStyle(
-                                  fontSize: 15, fontWeight: FontWeight.w600),
-                            ),
+                          txAsync.when(
+                            data: (txs) {
+                              final totalInvested = txs
+                                  .where((t) =>
+                                      t.type == TransactionType.buy ||
+                                      t.type == TransactionType.recurringBuy)
+                                  .fold<double>(
+                                      0, (sum, t) => sum + t.amountSek);
+                              return Text(
+                                'kr.${NumberFormat('#,###').format(totalInvested)}',
+                                style: const TextStyle(
+                                    fontSize: 15, fontWeight: FontWeight.w600),
+                              );
+                            },
                             loading: () => const Text('kr.0'),
                             error: (_, __) => const Text('kr.0'),
                           ),
@@ -123,7 +143,12 @@ class PortfolioScreen extends ConsumerWidget {
                       )
                     : Column(
                         children: subs
-                            .map((s) => _SubscriptionCard(sub: s))
+                            .map((s) => _SubscriptionCard(
+                                  sub: s,
+                                  onCancel: () => ref
+                                      .read(goldTransactionServiceProvider)
+                                      .cancelSubscription(s.id),
+                                ))
                             .toList()),
                 loading: () => const CircularProgressIndicator(),
                 error: (e, _) => Text('$e'),
@@ -140,16 +165,36 @@ class PortfolioScreen extends ConsumerWidget {
 class _PortfolioSummary extends StatelessWidget {
   final Wallet? wallet;
   final GoldPrice goldPrice;
-  const _PortfolioSummary({this.wallet, required this.goldPrice});
+  final double totalInvested;
+  const _PortfolioSummary(
+      {this.wallet, required this.goldPrice, required this.totalInvested});
 
   @override
   Widget build(BuildContext context) {
     final value = (wallet?.goldGrams ?? 0) * goldPrice.pricePerGramSek;
     final grams = wallet?.goldGrams ?? 0;
+
+    String changeLabel;
+    Color changeColor;
+    IconData changeIcon;
+    if (totalInvested <= 0) {
+      changeLabel = '—';
+      changeColor = AppConstants.subtitle;
+      changeIcon = Icons.trending_flat_rounded;
+    } else {
+      final pct = (value - totalInvested) / totalInvested * 100;
+      changeLabel = '${pct >= 0 ? '+' : ''}${pct.toStringAsFixed(2)}%';
+      changeColor = pct >= 0 ? AppConstants.green : AppConstants.error;
+      changeIcon =
+          pct >= 0 ? Icons.trending_up_rounded : Icons.trending_down_rounded;
+    }
+
     return _SummaryCard(
       value: 'kr.${NumberFormat('#,###').format(value)}',
       grams: '${grams.toStringAsFixed(1)}g of Gold',
-      change: '+2.47%',
+      change: changeLabel,
+      changeColor: changeColor,
+      changeIcon: changeIcon,
     );
   }
 }
@@ -158,8 +203,15 @@ class _SummaryCard extends StatelessWidget {
   final String value;
   final String grams;
   final String change;
-  const _SummaryCard(
-      {required this.value, required this.grams, required this.change});
+  final Color changeColor;
+  final IconData changeIcon;
+  const _SummaryCard({
+    required this.value,
+    required this.grams,
+    required this.change,
+    this.changeColor = AppConstants.subtitle,
+    this.changeIcon = Icons.trending_flat_rounded,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -182,14 +234,13 @@ class _SummaryCard extends StatelessWidget {
                 fontWeight: FontWeight.w600)),
         const SizedBox(height: 4),
         Row(children: [
-          const Icon(Icons.trending_up_rounded,
-              color: AppConstants.green, size: 16),
+          Icon(changeIcon, color: changeColor, size: 16),
           const SizedBox(width: 4),
           Text(change,
-              style: const TextStyle(
-                  color: AppConstants.green, fontWeight: FontWeight.w600)),
-          const Text(' vs last month',
-              style: TextStyle(color: AppConstants.subtitle, fontSize: 13)),
+              style: TextStyle(color: changeColor, fontWeight: FontWeight.w600)),
+          if (changeColor != AppConstants.subtitle)
+            const Text(' vs cost basis',
+                style: TextStyle(color: AppConstants.subtitle, fontSize: 13)),
         ]),
       ],
     );
@@ -198,7 +249,8 @@ class _SummaryCard extends StatelessWidget {
 
 class _SubscriptionCard extends StatelessWidget {
   final Subscription sub;
-  const _SubscriptionCard({required this.sub});
+  final Future<void> Function() onCancel;
+  const _SubscriptionCard({required this.sub, required this.onCancel});
 
   @override
   Widget build(BuildContext context) {
@@ -228,8 +280,11 @@ class _SubscriptionCard extends StatelessWidget {
                         fontWeight: FontWeight.w600, fontSize: 14),
                   ),
                 ]),
-                const Icon(Icons.settings_outlined,
-                    color: AppConstants.subtitle, size: 20),
+                GestureDetector(
+                  onTap: () => _confirmCancel(context),
+                  child: const Icon(Icons.settings_outlined,
+                      color: AppConstants.subtitle, size: 20),
+                ),
               ],
             ),
             const SizedBox(height: 10),
@@ -262,6 +317,33 @@ class _SubscriptionCard extends StatelessWidget {
             ],
           ],
         ),
+      ),
+    );
+  }
+
+  void _confirmCancel(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Cancel subscription?'),
+        content: const Text(
+          'This will stop future automatic gold purchases.',
+          style: TextStyle(fontSize: 13),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Keep it'),
+          ),
+          TextButton(
+            onPressed: () async {
+              Navigator.pop(ctx);
+              await onCancel();
+            },
+            child: const Text('Cancel subscription',
+                style: TextStyle(color: AppConstants.error)),
+          ),
+        ],
       ),
     );
   }

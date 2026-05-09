@@ -53,6 +53,12 @@ class AppConstants {
   static const Color successColor = Color(0xFF4CAF50);
   static const Color errorColor = Color(0xFFF44336);
 
+  // Dark Mode Colors
+  static const Color darkBackground = Color(0xFF121212);
+  static const Color darkCard = Color(0xFF1E1E1E);
+  static const Color darkDivider = Color(0xFF2C2C2C);
+  static const Color darkSubtitle = Color(0xFF9E9E9E);
+
   // Splash Screen
   static const Color splashBg = Color(0xFFF7F7F5);
 }

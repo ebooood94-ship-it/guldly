@@ -49,7 +49,7 @@ class SecurityScreen extends ConsumerWidget {
                         icon: Icons.security_outlined,
                         title: 'Multi-Factor Authentication',
                         subtitle: 'Add an extra layer of security',
-                        onTap: () {}),
+                        onTap: () => _showMfaDialog(context)),
                     const Divider(
                         height: 1,
                         color: AppConstants.divider,
@@ -59,7 +59,7 @@ class SecurityScreen extends ConsumerWidget {
                         icon: Icons.devices_outlined,
                         title: 'Login Sessions',
                         subtitle: 'View and manage active sessions',
-                        onTap: () {}),
+                        onTap: () => _showSessionsSheet(context, ref)),
                   ],
                 ),
               ),
@@ -91,6 +91,132 @@ class SecurityScreen extends ConsumerWidget {
         ),
       ),
     );
+  }
+
+  void _showMfaDialog(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('Multi-Factor Authentication'),
+        content: const Text(
+          'MFA via authenticator app is coming soon. '
+          'You\'ll be able to add an extra layer of security to your account.',
+          style: TextStyle(fontSize: 13),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Got it',
+                style: TextStyle(color: AppConstants.gold)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showSessionsSheet(BuildContext context, WidgetRef ref) {
+    final user = ref.read(currentUserProvider);
+    final email = user?.email ?? '—';
+    final lastSignIn = user?.lastSignInAt != null
+        ? _formatDate(DateTime.parse(user!.lastSignInAt!))
+        : '—';
+
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (_) => Padding(
+        padding: const EdgeInsets.fromLTRB(20, 12, 20, 32),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Center(
+              child: Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: AppConstants.divider,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+            ),
+            const SizedBox(height: 20),
+            const Text('Active Sessions',
+                style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w700,
+                    color: AppConstants.black)),
+            const SizedBox(height: 16),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: AppConstants.card,
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Row(
+                children: [
+                  Container(
+                    width: 42,
+                    height: 42,
+                    decoration: BoxDecoration(
+                      color: AppConstants.gold.withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: const Icon(Icons.phone_android_rounded,
+                        color: AppConstants.gold, size: 22),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text('This device',
+                            style: TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w600,
+                                color: AppConstants.black)),
+                        const SizedBox(height: 2),
+                        Text(email,
+                            style: const TextStyle(
+                                fontSize: 12, color: AppConstants.subtitle)),
+                        const SizedBox(height: 2),
+                        Text('Last active: $lastSignIn',
+                            style: const TextStyle(
+                                fontSize: 12, color: AppConstants.subtitle)),
+                      ],
+                    ),
+                  ),
+                  Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: AppConstants.green.withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    child: const Text('Active',
+                        style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w600,
+                            color: AppConstants.green)),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  String _formatDate(DateTime dt) {
+    final months = [
+      'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
+    ];
+    return '${months[dt.month - 1]} ${dt.day}, ${dt.year}';
   }
 
   void _showChangePassword(BuildContext context, WidgetRef ref) {

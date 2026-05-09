@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/constants/app_constants.dart';
+import '../../../core/providers/providers.dart';
 import '../../../core/router/router.dart';
 
-class AppShell extends StatelessWidget {
+class AppShell extends ConsumerWidget {
   final Widget child;
   const AppShell({super.key, required this.child});
 
@@ -35,7 +37,8 @@ class AppShell extends StatelessWidget {
   }
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    ref.watch(firstLoginSetupProvider);
     final location = GoRouterState.of(context).matchedLocation;
     final currentIndex = _locationToIndex(location);
 

@@ -20,6 +20,75 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   bool _loading = false;
   String? _error;
 
+  void _showForgotPassword() {
+    final emailCtrl =
+        TextEditingController(text: _emailCtrl.text.trim());
+    bool sending = false;
+    showDialog(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setInner) => AlertDialog(
+          title: const Text('Reset password'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text(
+                  'Enter your email and we\'ll send a reset link.',
+                  style: TextStyle(fontSize: 13)),
+              const SizedBox(height: 16),
+              TextField(
+                controller: emailCtrl,
+                keyboardType: TextInputType.emailAddress,
+                decoration: InputDecoration(
+                  hintText: 'your@email.com',
+                  filled: true,
+                  fillColor: AppConstants.background,
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(10),
+                    borderSide: BorderSide.none,
+                  ),
+                  contentPadding: const EdgeInsets.symmetric(
+                      horizontal: 14, vertical: 12),
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('Cancel'),
+            ),
+            TextButton(
+              onPressed: sending
+                  ? null
+                  : () async {
+                      setInner(() => sending = true);
+                      try {
+                        await ref
+                            .read(authNotifierProvider)
+                            .resetPassword(emailCtrl.text.trim());
+                        if (ctx.mounted) Navigator.pop(ctx);
+                        if (mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text('Reset link sent — check your email'),
+                              backgroundColor: AppConstants.green,
+                            ),
+                          );
+                        }
+                      } catch (e) {
+                        setInner(() => sending = false);
+                      }
+                    },
+              child: Text(sending ? 'Sending…' : 'Send link',
+                  style: const TextStyle(color: AppConstants.gold)),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Future<void> _signIn() async {
     setState(() {
       _loading = true;
@@ -95,6 +164,21 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                 hint: '••••••••',
                 controller: _passwordCtrl,
                 obscure: true,
+              ),
+              const SizedBox(height: 8),
+              Align(
+                alignment: Alignment.centerRight,
+                child: GestureDetector(
+                  onTap: _showForgotPassword,
+                  child: const Text(
+                    'Forgot password?',
+                    style: TextStyle(
+                      color: AppConstants.gold,
+                      fontSize: 13,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ),
               ),
               if (_error != null) ...[
                 const SizedBox(height: 12),

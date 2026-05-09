@@ -194,41 +194,174 @@ class _TransactionRow extends StatelessWidget {
     final color = isPositive ? AppConstants.green : AppConstants.black;
     final prefix = isPositive ? '+' : '-';
 
+    return GestureDetector(
+      onTap: () => _showDetail(context),
+      behavior: HitTestBehavior.opaque,
+      child: Padding(
+        padding: const EdgeInsets.only(bottom: 20),
+        child: Row(
+          children: [
+            Container(
+              width: 42,
+              height: 42,
+              decoration: BoxDecoration(
+                color: AppConstants.green.withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: const Icon(Icons.currency_exchange,
+                  color: AppConstants.green, size: 20),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(_txLabel(tx.type),
+                      style: const TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w500,
+                          color: AppConstants.black)),
+                  const SizedBox(height: 2),
+                  Text(DateFormat('MMM dd, yyyy').format(tx.createdAt),
+                      style: const TextStyle(
+                          fontSize: 12, color: AppConstants.subtitle)),
+                ],
+              ),
+            ),
+            Text(
+              '$prefix kr.${NumberFormat('#,###').format(tx.amountSek)}',
+              style: TextStyle(
+                  color: color, fontWeight: FontWeight.w600, fontSize: 14),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showDetail(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (_) => _TransactionDetailSheet(tx: tx),
+    );
+  }
+
+  String _txLabel(TransactionType type) {
+    switch (type) {
+      case TransactionType.addFunds:
+        return 'Added funds';
+      case TransactionType.buy:
+        return 'Bought gold';
+      case TransactionType.sell:
+        return 'Sold gold';
+      case TransactionType.giftSent:
+        return 'Gift sent';
+      case TransactionType.giftReceived:
+        return 'Gift received';
+      case TransactionType.delivery:
+        return 'Delivery requested';
+      case TransactionType.recurringBuy:
+        return 'Recurring purchase';
+    }
+  }
+}
+
+class _TransactionDetailSheet extends StatelessWidget {
+  final Transaction tx;
+  const _TransactionDetailSheet({required this.tx});
+
+  @override
+  Widget build(BuildContext context) {
+    final isPositive = tx.type == TransactionType.addFunds ||
+        tx.type == TransactionType.sell ||
+        tx.type == TransactionType.giftReceived;
+    final amountColor = isPositive ? AppConstants.green : AppConstants.black;
+    final prefix = isPositive ? '+' : '-';
+
     return Padding(
-      padding: const EdgeInsets.only(bottom: 20),
-      child: Row(
+      padding: const EdgeInsets.fromLTRB(20, 12, 20, 32),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
         children: [
           Container(
-            width: 42,
-            height: 42,
+            width: 40,
+            height: 4,
             decoration: BoxDecoration(
-              color: AppConstants.green.withValues(alpha: 0.12),
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: const Icon(Icons.currency_exchange,
-                color: AppConstants.green, size: 20),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(_txLabel(tx.type),
-                    style: const TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w500,
-                        color: AppConstants.black)),
-                const SizedBox(height: 2),
-                Text(DateFormat('MMM dd, yyyy').format(tx.createdAt),
-                    style: const TextStyle(
-                        fontSize: 12, color: AppConstants.subtitle)),
-              ],
+              color: AppConstants.divider,
+              borderRadius: BorderRadius.circular(2),
             ),
           ),
+          const SizedBox(height: 20),
           Text(
-            '$prefix kr.${NumberFormat('#,###').format(tx.amountSek)}',
+            _txLabel(tx.type),
+            style: const TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.w700,
+              color: AppConstants.black,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            '$prefix kr.${NumberFormat('#,###.##').format(tx.amountSek)}',
             style: TextStyle(
-                color: color, fontWeight: FontWeight.w600, fontSize: 14),
+              fontSize: 28,
+              fontWeight: FontWeight.w300,
+              color: amountColor,
+              letterSpacing: -0.5,
+            ),
+          ),
+          const SizedBox(height: 24),
+          _DetailRow(
+            label: 'Status',
+            value:
+                tx.status.name[0].toUpperCase() + tx.status.name.substring(1),
+          ),
+          const Divider(height: 16, color: AppConstants.divider),
+          _DetailRow(
+            label: 'Date',
+            value: DateFormat('MMM dd, yyyy • HH:mm').format(tx.createdAt),
+          ),
+          if (tx.goldGrams != null) ...[
+            const Divider(height: 16, color: AppConstants.divider),
+            _DetailRow(
+              label: 'Gold',
+              value: '${tx.goldGrams!.toStringAsFixed(3)}g',
+            ),
+          ],
+          if (tx.goldPricePerGramSek != null) ...[
+            const Divider(height: 16, color: AppConstants.divider),
+            _DetailRow(
+              label: 'Gold price',
+              value:
+                  'kr.${NumberFormat('#,###.##').format(tx.goldPricePerGramSek)}/g',
+            ),
+          ],
+          if (tx.paymentMethod != null) ...[
+            const Divider(height: 16, color: AppConstants.divider),
+            _DetailRow(
+              label: 'Payment',
+              value: _formatPaymentMethod(tx.paymentMethod!),
+            ),
+          ],
+          if (tx.recipientName != null) ...[
+            const Divider(height: 16, color: AppConstants.divider),
+            _DetailRow(label: 'Recipient', value: tx.recipientName!),
+          ],
+          if (tx.recipientEmail != null) ...[
+            const Divider(height: 16, color: AppConstants.divider),
+            _DetailRow(label: 'Email', value: tx.recipientEmail!),
+          ],
+          if (tx.deliveryAddress != null) ...[
+            const Divider(height: 16, color: AppConstants.divider),
+            _DetailRow(label: 'Delivery to', value: tx.deliveryAddress!),
+          ],
+          const Divider(height: 16, color: AppConstants.divider),
+          _DetailRow(
+            label: 'Ref',
+            value: tx.id.substring(0, 8).toUpperCase(),
           ),
         ],
       ),
@@ -252,5 +385,43 @@ class _TransactionRow extends StatelessWidget {
       case TransactionType.recurringBuy:
         return 'Recurring purchase';
     }
+  }
+
+  String _formatPaymentMethod(PaymentMethod method) {
+    switch (method) {
+      case PaymentMethod.wallet:
+        return 'Wallet';
+      case PaymentMethod.creditCard:
+        return 'Credit Card';
+      case PaymentMethod.bankTransfer:
+        return 'Bank Transfer';
+    }
+  }
+}
+
+class _DetailRow extends StatelessWidget {
+  final String label;
+  final String value;
+  const _DetailRow({required this.label, required this.value});
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Text(label,
+            style: const TextStyle(fontSize: 14, color: AppConstants.subtitle)),
+        Flexible(
+          child: Text(
+            value,
+            textAlign: TextAlign.right,
+            style: const TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w500,
+                color: AppConstants.black),
+          ),
+        ),
+      ],
+    );
   }
 }

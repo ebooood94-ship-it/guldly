@@ -19,6 +19,7 @@ dependencies:
 
   # Backend
   supabase_flutter: ^2.3.4
+  flutter_stripe: ^10.2.0
 
   # Networking
   http: ^1.2.1

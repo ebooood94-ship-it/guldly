@@ -1,17 +1,20 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:intl/intl.dart';
 import '../../../core/constants/app_constants.dart';
+import '../../../core/providers/providers.dart';
 import '../../widgets/common/gold_button.dart';
 
-class BuyGoldScreen extends StatefulWidget {
+class BuyGoldScreen extends ConsumerStatefulWidget {
   const BuyGoldScreen({super.key});
 
   @override
-  State<BuyGoldScreen> createState() => _BuyGoldScreenState();
+  ConsumerState<BuyGoldScreen> createState() => _BuyGoldScreenState();
 }
 
-class _BuyGoldScreenState extends State<BuyGoldScreen> {
-  int _selectedTab = 1; // Buy tab active
+class _BuyGoldScreenState extends ConsumerState<BuyGoldScreen> {
+  final int _selectedTab = 1;
   String _purchaseMode = 'recurring'; // 'recurring' | 'onetime'
   String _paymentMethod = 'wallet'; // 'wallet' | 'card' | 'bank'
 
@@ -77,6 +80,7 @@ class _BuyGoldScreenState extends State<BuyGoldScreen> {
 
   // ── Rate card ──────────────────────────────────────────────────────────────
   Widget _buildRateCard() {
+    final goldAsync = ref.watch(goldPriceProvider);
     return Container(
       decoration: BoxDecoration(
         color: AppConstants.card,
@@ -93,7 +97,6 @@ class _BuyGoldScreenState extends State<BuyGoldScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Icon + "Rate" label
           Row(
             children: [
               Container(
@@ -117,50 +120,55 @@ class _BuyGoldScreenState extends State<BuyGoldScreen> {
             ],
           ),
           const SizedBox(height: 10),
-          // Price row
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: [
-              const Text(
-                'kr.25,796.19',
-                style: TextStyle(
-                  fontSize: 26,
-                  fontWeight: FontWeight.w700,
-                  color: AppConstants.black,
-                  letterSpacing: -0.5,
+          goldAsync.when(
+            data: (gold) => Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                Text(
+                  'kr.${NumberFormat('#,###.##').format(gold.pricePerOzSek)}',
+                  style: const TextStyle(
+                    fontSize: 26,
+                    fontWeight: FontWeight.w700,
+                    color: AppConstants.black,
+                    letterSpacing: -0.5,
+                  ),
                 ),
-              ),
-              const SizedBox(width: 10),
-              // Badge
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                decoration: BoxDecoration(
-                  color: AppConstants.green.withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(20),
-                ),
-                child: const Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(Icons.arrow_upward_rounded,
-                        color: AppConstants.green, size: 12),
-                    SizedBox(width: 2),
-                    Text(
-                      '1.30%',
-                      style: TextStyle(
-                        color: AppConstants.green,
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
+                const SizedBox(width: 10),
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                  decoration: BoxDecoration(
+                    color: AppConstants.green.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: const Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.circle, color: AppConstants.green, size: 7),
+                      SizedBox(width: 4),
+                      Text(
+                        'Live',
+                        style: TextStyle(
+                          color: AppConstants.green,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                        ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
+              ],
+            ),
+            loading: () => Container(
+              height: 32,
+              width: 140,
+              decoration: BoxDecoration(
+                color: Colors.grey.shade200,
+                borderRadius: BorderRadius.circular(6),
               ),
-              const SizedBox(width: 8),
-              const Text(
-                'vs last rate',
-                style: TextStyle(color: AppConstants.subtitle, fontSize: 12),
-              ),
-            ],
+            ),
+            error: (_, __) => const Text('Price unavailable',
+                style: TextStyle(color: AppConstants.error)),
           ),
           const SizedBox(height: 4),
           const Text(
@@ -250,7 +258,12 @@ class _BuyGoldScreenState extends State<BuyGoldScreen> {
             iconBg: const Color(0xFFF0F0F0),
             iconColor: AppConstants.subtitle,
             title: 'Wallet Balance',
-            subtitle: 'Available Balance: kr.525,000.00',
+            subtitle: ref.watch(walletProvider).when(
+                  data: (w) =>
+                      'Available Balance: kr.${NumberFormat('#,###.##').format(w?.balanceSek ?? 0)}',
+                  loading: () => 'Loading...',
+                  error: (_, __) => 'Available Balance: kr.0',
+                ),
             value: 'wallet',
             groupValue: _paymentMethod,
             onChanged: (v) => setState(() => _paymentMethod = v),
@@ -290,6 +303,8 @@ class _BuyGoldScreenState extends State<BuyGoldScreen> {
       child: GoldButton(
         label: 'Continue',
         onPressed: () {
+          ref.read(selectedPaymentMethodProvider.notifier).state =
+              _paymentMethod;
           if (_purchaseMode == 'recurring') {
             context.push('/buy/recurring');
           } else {
@@ -329,19 +344,17 @@ class _BuyGoldScreenState extends State<BuyGoldScreen> {
           final isSelected = e.key == _selectedTab;
           return GestureDetector(
             onTap: () {
-              if (e.key == 0) {
-                Navigator.of(context).pop(); // Go back to home
-              } else {
-                setState(() => _selectedTab = e.key);
-                // Show coming soon for other tabs
-                if (e.key != 1) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text('${e.value.label} screen coming soon!'),
-                      duration: const Duration(seconds: 1),
-                    ),
-                  );
-                }
+              switch (e.key) {
+                case 0:
+                  context.go('/home');
+                case 1:
+                  break; // already on Buy
+                case 2:
+                  context.go('/wallet');
+                case 3:
+                  context.go('/portfolio');
+                case 4:
+                  context.go('/more');
               }
             },
             child: Column(
