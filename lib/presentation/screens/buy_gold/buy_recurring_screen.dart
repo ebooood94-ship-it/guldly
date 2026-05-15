@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import '../../../core/constants/app_constants.dart';
+import '../../../core/models/models.dart';
 import '../../../core/providers/providers.dart';
 import '../../../core/router/router.dart';
 import '../../widgets/gold/live_badge.dart';
@@ -147,7 +148,7 @@ class _BuyRecurringScreenState extends ConsumerState<BuyRecurringScreen> {
     );
   }
 
-  Widget _buildAmountCard(goldAsync, String gramsLabel) {
+  Widget _buildAmountCard(AsyncValue<GoldPrice> goldAsync, String gramsLabel) {
     return Container(
       decoration: BoxDecoration(
         color: AppConstants.card,
