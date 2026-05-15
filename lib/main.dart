@@ -9,8 +9,12 @@ import 'core/theme/app_theme.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  StripeService.initialize(
-      'pk_test_51TUpnp5YGUKTIsY7CugQwPteWhQm1sFJJLnmS0IzWAYt7BrNqdOxQ0FaMWT6rkmOgtbDHpyvXs9I1lUlIXI0ceQh00FT57ufJh');
+  try {
+    StripeService.initialize(
+        'pk_test_51TUpnp5YGUKTIsY7CugQwPteWhQm1sFJJLnmS0IzWAYt7BrNqdOxQ0FaMWT6rkmOgtbDHpyvXs9I1lUlIXI0ceQh00FT57ufJh');
+  } catch (_) {
+    // Stripe init is deferred on web — key is set lazily before first payment
+  }
 
   await Supabase.initialize(
     url: 'https://njcwivpthvrpqocibrpb.supabase.co',

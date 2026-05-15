@@ -5,6 +5,7 @@ import 'package:intl/intl.dart';
 import '../../../core/models/models.dart';
 import '../../../core/providers/providers.dart';
 import '../../../core/router/router.dart';
+import '../../widgets/common/error_view.dart';
 import '../../widgets/common/screen_header.dart';
 import 'package:go_router/go_router.dart';
 
@@ -52,7 +53,7 @@ class WalletScreen extends ConsumerWidget {
                           : _TransactionList(transactions: txs),
                       loading: () =>
                           const Center(child: CircularProgressIndicator()),
-                      error: (e, _) => Text('Error: $e'),
+                      error: (e, _) => ErrorView(error: e),
                     ),
                     const SizedBox(height: 24),
                   ],

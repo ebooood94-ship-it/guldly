@@ -20,11 +20,13 @@ import '../../presentation/screens/sell/sell_screen.dart';
 import '../../presentation/screens/gift/gift_screen.dart';
 import '../../presentation/screens/delivery/delivery_screen.dart';
 import '../../presentation/screens/transaction/receipt_screen.dart';
+import '../../presentation/screens/auth/onboarding_screen.dart';
 import '../providers/providers.dart';
 
 // Route name constants
 class Routes {
   static const splash = '/';
+  static const onboarding = '/onboarding';
   static const login = '/login';
   static const register = '/register';
   static const home = '/home';
@@ -47,6 +49,7 @@ class Routes {
 
 final routerProvider = Provider<GoRouter>((ref) {
   final authState = ref.watch(authStateProvider);
+  final onboardingAsync = ref.watch(onboardingCompleteProvider);
 
   return GoRouter(
     initialLocation: Routes.splash,
@@ -56,14 +59,17 @@ final routerProvider = Provider<GoRouter>((ref) {
           state.matchedLocation == Routes.register ||
           state.matchedLocation == Routes.splash;
 
-      // Still loading
-      if (authState.isLoading) return null;
+      // Still loading auth or onboarding state
+      if (authState.isLoading || onboardingAsync.isLoading) return null;
 
       // Not logged in → redirect to login (unless already on auth screen)
       if (!isLoggedIn && !isAuthRoute) return Routes.login;
 
-      // Logged in → redirect away from splash/login
-      if (isLoggedIn && isAuthRoute) return Routes.home;
+      // Logged in + coming from auth → check onboarding
+      if (isLoggedIn && isAuthRoute) {
+        final onboardingDone = onboardingAsync.value ?? true;
+        return onboardingDone ? Routes.home : Routes.onboarding;
+      }
 
       return null;
     },
@@ -72,6 +78,10 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: Routes.splash,
         builder: (_, __) => const SplashScreen(),
+      ),
+      GoRoute(
+        path: Routes.onboarding,
+        builder: (_, __) => const OnboardingScreen(),
       ),
       GoRoute(
         path: Routes.login,

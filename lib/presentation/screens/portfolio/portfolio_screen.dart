@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import '../../../core/models/models.dart';
 import '../../../core/providers/providers.dart';
+import '../../widgets/common/error_view.dart';
 import '../../widgets/common/gold_card.dart';
 
 class PortfolioScreen extends ConsumerWidget {
@@ -32,6 +33,20 @@ class PortfolioScreen extends ConsumerWidget {
                       color: AppConstants.black)),
               const SizedBox(height: 20),
               // Portfolio summary
+              Consumer(builder: (_, ref, __) {
+                final history = ref.watch(goldPriceHistoryProvider);
+                if (history.length >= 2) {
+                  return SizedBox(
+                    height: 40,
+                    child: CustomPaint(
+                      painter: _MiniChartPainter(history),
+                      size: const Size(double.infinity, 40),
+                    ),
+                  );
+                }
+                return const SizedBox.shrink();
+              }),
+              const SizedBox(height: 8),
               walletAsync.when(
                 data: (wallet) => goldAsync.when(
                   data: (gold) {
@@ -91,12 +106,16 @@ class PortfolioScreen extends ConsumerWidget {
                           ),
                         ],
                       ),
-                      // Mini chart placeholder
-                      SizedBox(
-                        width: 80,
-                        height: 40,
-                        child: CustomPaint(painter: _MiniChartPainter()),
-                      ),
+                      Consumer(builder: (_, ref, __) {
+                        final h = ref.watch(goldPriceHistoryProvider);
+                        return SizedBox(
+                          width: 80,
+                          height: 40,
+                          child: h.length >= 2
+                              ? CustomPaint(painter: _MiniChartPainter(h))
+                              : const SizedBox.shrink(),
+                        );
+                      }),
                       Column(
                         crossAxisAlignment: CrossAxisAlignment.end,
                         children: [
@@ -151,7 +170,7 @@ class PortfolioScreen extends ConsumerWidget {
                                 ))
                             .toList()),
                 loading: () => const CircularProgressIndicator(),
-                error: (e, _) => Text('$e'),
+                error: (e, _) => ErrorView(error: e),
               ),
               const SizedBox(height: 24),
             ],
@@ -361,23 +380,32 @@ class _SubscriptionCard extends StatelessWidget {
 }
 
 class _MiniChartPainter extends CustomPainter {
-  static const pts = [0.5, 0.4, 0.6, 0.45, 0.7, 0.65, 0.8];
+  final List<double> prices;
+  const _MiniChartPainter(this.prices);
 
   @override
   void paint(Canvas canvas, Size size) {
+    if (prices.length < 2) return;
+    final min = prices.reduce((a, b) => a < b ? a : b);
+    final max = prices.reduce((a, b) => a > b ? a : b);
+    final range = max - min == 0 ? 1.0 : max - min;
+
+    final isUp = prices.last >= prices.first;
     final paint = Paint()
-      ..color = AppConstants.green
+      ..color = isUp ? AppConstants.green : AppConstants.error
       ..style = PaintingStyle.stroke
-      ..strokeWidth = 1.5;
+      ..strokeWidth = 1.5
+      ..strokeCap = StrokeCap.round;
+
     final path = Path();
-    for (var i = 0; i < pts.length; i++) {
-      final x = i / (pts.length - 1) * size.width;
-      final y = (1 - pts[i]) * size.height;
+    for (var i = 0; i < prices.length; i++) {
+      final x = i / (prices.length - 1) * size.width;
+      final y = (1 - (prices[i] - min) / range) * size.height;
       i == 0 ? path.moveTo(x, y) : path.lineTo(x, y);
     }
     canvas.drawPath(path, paint);
   }
 
   @override
-  bool shouldRepaint(_) => false;
+  bool shouldRepaint(_MiniChartPainter old) => old.prices != prices;
 }

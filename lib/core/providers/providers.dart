@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/models.dart';
 
@@ -32,6 +33,15 @@ final profileProvider = FutureProvider<UserProfile?>((ref) async {
 
 // ─── Theme ────────────────────────────────────────────────────────────────────
 final themeModeProvider = StateProvider<ThemeMode>((ref) => ThemeMode.light);
+
+// ─── Onboarding ───────────────────────────────────────────────────────────────
+final onboardingCompleteProvider = FutureProvider<bool>((ref) async {
+  final prefs = await SharedPreferences.getInstance();
+  return prefs.getBool('onboarding_complete') ?? false;
+});
+
+// ─── Gold Price History (last 20 readings for mini chart) ─────────────────────
+final goldPriceHistoryProvider = StateProvider<List<double>>((ref) => []);
 
 // ─── Gold Price ───────────────────────────────────────────────────────────────
 final goldPriceProvider = FutureProvider<GoldPrice>((ref) async {
@@ -67,11 +77,20 @@ final goldPriceProvider = FutureProvider<GoldPrice>((ref) async {
   // rates.SEKUSD = how many SEK per 1 USD
   final sekPerUsd = (fxData['rates']['SEKUSD'] as num).toDouble();
 
-  return GoldPrice(
+  final price = GoldPrice(
     pricePerOzUsd: priceUsd,
     usdToSek: sekPerUsd,
     timestamp: DateTime.now(),
   );
+
+  // Append to history (keep last 20 readings for mini chart)
+  final history = ref.read(goldPriceHistoryProvider);
+  ref.read(goldPriceHistoryProvider.notifier).state = [
+    ...history.skip(history.length > 19 ? history.length - 19 : 0),
+    price.pricePerGramSek,
+  ];
+
+  return price;
 });
 
 // ─── Wallet ───────────────────────────────────────────────────────────────────
