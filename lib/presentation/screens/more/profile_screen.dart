@@ -121,17 +121,35 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                             : () async {
                                 setState(() => _saving = true);
                                 final user = ref.read(currentUserProvider);
+                                final messenger = ScaffoldMessenger.of(context);
                                 if (user != null) {
-                                  await ref
-                                      .read(supabaseProvider)
-                                      .from('profiles')
-                                      .update({
-                                    'full_name': _nameCtrl.text,
-                                    'phone': _phoneCtrl.text,
-                                    'updated_at':
-                                        DateTime.now().toIso8601String(),
-                                  }).eq('id', user.id);
-                                  ref.invalidate(profileProvider);
+                                  try {
+                                    await ref
+                                        .read(supabaseProvider)
+                                        .from('profiles')
+                                        .update({
+                                      'full_name': _nameCtrl.text,
+                                      'phone': _phoneCtrl.text,
+                                      'updated_at':
+                                          DateTime.now().toIso8601String(),
+                                    }).eq('id', user.id);
+                                    ref.invalidate(profileProvider);
+                                    messenger.showSnackBar(
+                                      const SnackBar(
+                                        content: Text('Profile updated'),
+                                        backgroundColor: AppConstants.green,
+                                      ),
+                                    );
+                                  } catch (e) {
+                                    messenger.showSnackBar(
+                                      SnackBar(
+                                        content: Text(e
+                                            .toString()
+                                            .replaceFirst('Exception: ', '')),
+                                        backgroundColor: AppConstants.error,
+                                      ),
+                                    );
+                                  }
                                 }
                                 if (mounted) setState(() => _saving = false);
                               }),

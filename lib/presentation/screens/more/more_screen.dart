@@ -147,7 +147,7 @@ class MoreScreen extends ConsumerWidget {
                         icon: Icons.help_outline,
                         title: 'Help & Support',
                         subtitle: 'Get help with your account',
-                        onTap: () {}),
+                        onTap: () => _showSupportSheet(context)),
                     const Divider(
                         height: 1,
                         color: AppConstants.divider,
@@ -167,6 +167,105 @@ class MoreScreen extends ConsumerWidget {
             ],
           ),
         ),
+      ),
+    );
+  }
+}
+
+void _showSupportSheet(BuildContext context) {
+  showModalBottomSheet(
+    context: context,
+    shape: const RoundedRectangleBorder(
+      borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+    ),
+    builder: (_) => Padding(
+      padding: const EdgeInsets.fromLTRB(20, 12, 20, 40),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Center(
+            child: Container(
+              width: 40,
+              height: 4,
+              decoration: BoxDecoration(
+                color: AppConstants.divider,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+          ),
+          const SizedBox(height: 20),
+          const Text(
+            'Help & Support',
+            style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.w700,
+                color: AppConstants.black),
+          ),
+          const SizedBox(height: 16),
+          const _SupportItem(
+            icon: Icons.email_outlined,
+            title: 'Email us',
+            subtitle: 'support@guldly.se',
+          ),
+          const SizedBox(height: 12),
+          const _SupportItem(
+            icon: Icons.chat_bubble_outline,
+            title: 'FAQ',
+            subtitle: 'Answers to common questions',
+          ),
+          const SizedBox(height: 12),
+          const _SupportItem(
+            icon: Icons.policy_outlined,
+            title: 'Terms & Privacy',
+            subtitle: 'guldly.se/legal',
+          ),
+        ],
+      ),
+    ),
+  );
+}
+
+class _SupportItem extends StatelessWidget {
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  const _SupportItem({required this.icon, required this.title, required this.subtitle});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: AppConstants.card,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 40,
+            height: 40,
+            decoration: BoxDecoration(
+              color: AppConstants.gold.withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Icon(icon, color: AppConstants.gold, size: 20),
+          ),
+          const SizedBox(width: 12),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(title,
+                  style: const TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                      color: AppConstants.black)),
+              Text(subtitle,
+                  style: const TextStyle(
+                      fontSize: 12, color: AppConstants.subtitle)),
+            ],
+          ),
+        ],
       ),
     );
   }

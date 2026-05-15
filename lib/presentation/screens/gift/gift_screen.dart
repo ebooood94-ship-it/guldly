@@ -30,11 +30,26 @@ class _GiftScreenState extends ConsumerState<GiftScreen> {
   static const _gramSuggestions = [15.0, 31.0, 62.0, 155.0];
   static const _sekSuggestions = [100, 250, 500, 1000];
 
+  bool _isValidEmail(String email) {
+    return RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$').hasMatch(email);
+  }
+
   Future<void> _onContinue(double goldPricePerGramSek) async {
-    if (_nameCtrl.text.trim().isEmpty || _emailCtrl.text.trim().isEmpty) {
+    final name = _nameCtrl.text.trim();
+    final email = _emailCtrl.text.trim();
+    if (name.isEmpty || email.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Please fill in recipient details'),
+          backgroundColor: AppConstants.error,
+        ),
+      );
+      return;
+    }
+    if (!_isValidEmail(email)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Please enter a valid email address'),
           backgroundColor: AppConstants.error,
         ),
       );
@@ -289,12 +304,18 @@ class _GiftScreenState extends ConsumerState<GiftScreen> {
                       child: Padding(
                         padding: const EdgeInsets.all(16),
                         child: Column(children: [
-                          ProjectionRow(
-                              'Amount',
-                              _isSEK
-                                  ? 'kr.${NumberFormat('#,###').format(_amountSek)}'
-                                  : 'kr.0',
-                              AppConstants.black),
+                          goldAsync.when(
+                            data: (g) => ProjectionRow(
+                                'Amount',
+                                _isSEK
+                                    ? 'kr.${NumberFormat('#,###').format(_amountSek)}'
+                                    : 'kr.${NumberFormat('#,###').format((_grams * g.pricePerGramSek).round())}',
+                                AppConstants.black),
+                            loading: () => const ProjectionRow(
+                                'Amount', 'kr.—', AppConstants.black),
+                            error: (_, __) => const ProjectionRow(
+                                'Amount', 'kr.—', AppConstants.black),
+                          ),
                           const SizedBox(height: 8),
                           goldAsync.when(
                             data: (g) => ProjectionRow(
