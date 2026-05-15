@@ -8,6 +8,7 @@ import '../../../core/models/models.dart';
 import '../../../core/providers/providers.dart';
 import '../../../core/router/router.dart';
 import '../../widgets/gold/live_badge.dart';
+import 'card_checkout_sheet.dart';
 
 class BuyRecurringScreen extends ConsumerStatefulWidget {
   const BuyRecurringScreen({super.key});
@@ -43,6 +44,20 @@ class _BuyRecurringScreenState extends ConsumerState<BuyRecurringScreen> {
 
   Future<void> _onContinue() async {
     final paymentMethod = ref.read(selectedPaymentMethodProvider);
+    final goldPrice = ref.read(goldPriceProvider).value;
+
+    // For card payments, collect card details and charge the first instalment
+    if (paymentMethod == 'card' && goldPrice != null) {
+      final paid = await showCardCheckout(
+        context,
+        amountSek: _amountKr.toDouble(),
+        goldGrams: _amountKr / goldPrice.pricePerGramSek,
+        goldPricePerGramSek: goldPrice.pricePerGramSek,
+        supabase: ref.read(supabaseProvider),
+      );
+      if (!paid || !mounted) return;
+    }
+
     setState(() => _loading = true);
     try {
       await ref.read(goldTransactionServiceProvider).createRecurringSubscription(
