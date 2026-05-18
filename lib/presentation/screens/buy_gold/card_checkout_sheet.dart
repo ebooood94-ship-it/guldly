@@ -89,20 +89,22 @@ class _CardCheckoutSheetState extends State<_CardCheckoutSheet> {
       _error = null;
     });
     try {
-      final clientSecret = await _fetchClientSecret();
       bool paid = false;
 
       if (kIsWeb) {
-        // Use Stripe.js — works in web test mode with raw card data
+        // Server-side confirmation — edge function uses secret key so there
+        // are no publishable-key surface restrictions.
         paid = await confirmCardWithStripeJs(
-          clientSecret: clientSecret,
+          supabase: widget.supabase,
+          amountSek: widget.amountSek,
           cardNumber: _cardCtrl.text,
           expiry: _expiryCtrl.text,
           cvc: _cvcCtrl.text,
           name: _nameCtrl.text.trim(),
         );
       } else {
-        // Use flutter_stripe payment sheet (mobile)
+        // Mobile: flutter_stripe payment sheet
+        final clientSecret = await _fetchClientSecret();
         await Stripe.instance.initPaymentSheet(
           paymentSheetParameters: SetupPaymentSheetParameters(
             paymentIntentClientSecret: clientSecret,

@@ -1,16 +1,13 @@
-import 'dart:convert';
-import 'package:http/http.dart' as http;
+import 'package:supabase_flutter/supabase_flutter.dart';
 
-const _publishableKey =
-    'pk_test_51TUpnp5YGUKTIsY7CugQwPteWhQm1sFJJLnmS0IzWAYt7BrNqdOxQ0FaMWT6rkmOgtbDHpyvXs9I1lUlIXI0ceQh00FT57ufJh';
-
-/// Creates a Stripe PaymentMethod from raw card data, then confirms the
-/// PaymentIntent identified by [clientSecret].
+/// Charges a card server-side via the Supabase edge function.
 ///
-/// Works on all platforms (web + mobile) via Stripe's REST API.
-/// Raw card data is accepted in test mode; in production use Stripe Elements.
+/// The edge function uses the Stripe **secret** key to tokenise raw card data,
+/// which bypasses the publishable-key surface restriction that blocks
+/// direct REST calls from the browser.
 Future<bool> confirmCardWithStripeJs({
-  required String clientSecret,
+  required SupabaseClient supabase,
+  required double amountSek,
   required String cardNumber,
   required String expiry,
   required String cvc,
@@ -21,48 +18,21 @@ Future<bool> confirmCardWithStripeJs({
   final expMonth = expParts[0].trim();
   final expYear = '20${expParts[1].trim()}';
 
-  final headers = {
-    'Authorization': 'Bearer $_publishableKey',
-    'Content-Type': 'application/x-www-form-urlencoded',
-  };
-
-  // Step 1 — tokenise card into a PaymentMethod
-  final pmRes = await http.post(
-    Uri.parse('https://api.stripe.com/v1/payment_methods'),
-    headers: headers,
+  final response = await supabase.functions.invoke(
+    'create-payment-intent',
     body: {
-      'type': 'card',
-      'card[number]': cardNumber.replaceAll(' ', ''),
-      'card[exp_month]': expMonth,
-      'card[exp_year]': expYear,
-      'card[cvc]': cvc,
-      'billing_details[name]': name,
+      'amount': amountSek,
+      'currency': 'sek',
+      'cardNumber': cardNumber.replaceAll(' ', ''),
+      'expMonth': int.parse(expMonth),
+      'expYear': int.parse(expYear),
+      'cvc': cvc,
+      'name': name,
     },
   );
 
-  final pmData = jsonDecode(pmRes.body) as Map<String, dynamic>;
-  if (pmData['error'] != null) {
-    throw Exception((pmData['error'] as Map)['message'] ?? 'Card declined');
-  }
-  final pmId = pmData['id'] as String;
-
-  // Step 2 — confirm the PaymentIntent
-  // The client secret format is: pi_xxx_secret_yyy
-  final piId = clientSecret.split('_secret_').first;
-
-  final confirmRes = await http.post(
-    Uri.parse('https://api.stripe.com/v1/payment_intents/$piId/confirm'),
-    headers: headers,
-    body: {
-      'payment_method': pmId,
-      'client_secret': clientSecret,
-    },
-  );
-
-  final confirmData = jsonDecode(confirmRes.body) as Map<String, dynamic>;
-  if (confirmData['error'] != null) {
-    throw Exception(
-        (confirmData['error'] as Map)['message'] ?? 'Payment failed');
-  }
-  return confirmData['status'] == 'succeeded';
+  final data = response.data as Map<String, dynamic>?;
+  if (data == null) throw Exception('Payment service unavailable');
+  if (data['error'] != null) throw Exception(data['error'] as String);
+  return data['succeeded'] == true;
 }
