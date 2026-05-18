@@ -20,36 +20,46 @@ class _ReceiptScreenState extends ConsumerState<ReceiptScreen> {
   @override
   void initState() {
     super.initState();
-    // When the user returns from Stripe Checkout on web, record the transaction
+    // When the user returns from Stripe Checkout on web, record the transaction.
+    // We wait for Supabase auth to restore the session from localStorage before
+    // attempting the RPC — a cold-start redirect means auth may not be ready yet.
     if (widget.data['fromStripeRedirect'] == true) {
-      WidgetsBinding.instance.addPostFrameCallback((_) => _recordTransaction());
+      WidgetsBinding.instance
+          .addPostFrameCallback((_) => _waitForAuthThenRecord());
     }
   }
 
-  Future<void> _recordTransaction() async {
+  /// Polls until auth is ready (max ~5 s), then records the transaction.
+  Future<void> _waitForAuthThenRecord() async {
     setState(() => _recording = true);
+    for (var i = 0; i < 20; i++) {
+      final auth = ref.read(authStateProvider);
+      final ready = !auth.isLoading && auth.value?.session != null;
+      if (ready) {
+        await _recordTransaction();
+        return;
+      }
+      await Future.delayed(const Duration(milliseconds: 300));
+    }
+    // Auth never resolved — show the receipt anyway (Stripe already charged).
+    if (mounted) setState(() => _recording = false);
+  }
+
+  Future<void> _recordTransaction() async {
     try {
       final amtSek = (widget.data['amountSek'] as num?)?.toDouble() ?? 0;
       final grams = (widget.data['goldGrams'] as num?)?.toDouble() ?? 0;
-      final price = (widget.data['goldPricePerGramSek'] as num?)?.toDouble() ?? 0;
-      final frequency = widget.data['frequency'] as String?;
-      final isAddFunds = widget.data['addFunds'] == true ||
-          widget.data['addFunds'] == 'true';
+      final price =
+          (widget.data['goldPricePerGramSek'] as num?)?.toDouble() ?? 0;
+      final isAddFunds =
+          widget.data['addFunds'] == true || widget.data['addFunds'] == 'true';
 
       final svc = ref.read(goldTransactionServiceProvider);
 
       if (isAddFunds) {
         await svc.addFunds(amountSek: amtSek, paymentMethod: 'card');
-      } else if (frequency != null) {
-        // Recurring setup — record the first instalment as a one-time buy
-        // (the recurring scheduler will handle future charges)
-        await svc.buyGoldOnetime(
-          amountSek: amtSek,
-          goldGrams: grams,
-          goldPricePerGramSek: price,
-          paymentMethod: 'card',
-        );
       } else {
+        // One-time buy OR first instalment of a recurring setup
         await svc.buyGoldOnetime(
           amountSek: amtSek,
           goldGrams: grams,
@@ -57,8 +67,13 @@ class _ReceiptScreenState extends ConsumerState<ReceiptScreen> {
           paymentMethod: 'card',
         );
       }
-    } catch (_) {
-      // Non-critical — Stripe payment succeeded; transaction reconciled server-side.
+
+      // Ensure providers refresh even if the service already invalidated them
+      ref.invalidate(walletProvider);
+      ref.invalidate(transactionsProvider);
+    } catch (e) {
+      // Non-critical — Stripe payment already succeeded.
+      debugPrint('Receipt: failed to record transaction: $e');
     } finally {
       if (mounted) setState(() => _recording = false);
     }
