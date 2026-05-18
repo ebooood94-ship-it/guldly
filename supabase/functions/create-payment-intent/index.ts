@@ -19,16 +19,26 @@ Deno.serve(async (req: Request) => {
   }
 
   try {
-    const {
-      amount,
-      currency = "sek",
-      cardNumber,
-      expMonth,
-      expYear,
-      cvc,
-      name,
-    } = await req.json();
+    const body = await req.json();
+    const { amount, currency = "sek", clientSecret, paymentMethodId } = body;
 
+    // ── Path A: confirm an existing PaymentIntent with a tokenised pm id ──
+    // Called after flutter_stripe's CardField tokenises the card client-side.
+    if (clientSecret && paymentMethodId) {
+      const piId = (clientSecret as string).split("_secret_")[0];
+      const confirmed = await stripe.paymentIntents.confirm(piId, {
+        payment_method: paymentMethodId,
+      });
+      return new Response(
+        JSON.stringify({
+          succeeded: confirmed.status === "succeeded",
+          status: confirmed.status,
+        }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // ── Path B: create a new PaymentIntent and return its client secret ──
     if (!amount || typeof amount !== "number" || amount <= 0) {
       return new Response(JSON.stringify({ error: "Invalid amount" }), {
         status: 400,
@@ -36,37 +46,6 @@ Deno.serve(async (req: Request) => {
       });
     }
 
-    // If card details are provided, confirm the payment server-side
-    // (secret key has no tokenization surface restrictions)
-    if (cardNumber && expMonth && expYear && cvc) {
-      const paymentMethod = await stripe.paymentMethods.create({
-        type: "card",
-        card: {
-          number: String(cardNumber).replace(/\s/g, ""),
-          exp_month: Number(expMonth),
-          exp_year: Number(expYear),
-          cvc: String(cvc),
-        },
-        billing_details: { name: name ?? "" },
-      });
-
-      const paymentIntent = await stripe.paymentIntents.create({
-        amount: Math.round(amount * 100),
-        currency,
-        payment_method_types: ["card"],
-        payment_method: paymentMethod.id,
-        confirm: true,
-        metadata: { source: "guldly_app" },
-      });
-
-      const succeeded = paymentIntent.status === "succeeded";
-      return new Response(
-        JSON.stringify({ succeeded, status: paymentIntent.status }),
-        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
-
-    // Mobile path: just create the PaymentIntent and let flutter_stripe confirm it
     const paymentIntent = await stripe.paymentIntents.create({
       amount: Math.round(amount * 100),
       currency,

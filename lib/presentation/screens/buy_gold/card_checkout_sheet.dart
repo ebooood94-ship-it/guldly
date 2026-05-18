@@ -1,11 +1,11 @@
-import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_stripe/flutter_stripe.dart';
 import 'package:guldly/core/constants/app_constants.dart';
-import 'package:guldly/core/services/stripe_js.dart';
 import 'package:intl/intl.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+
+const _publishableKey =
+    'pk_test_51TUpnp5YGUKTIsY7CugQwPteWhQm1sFJJLnmS0IzWAYt7BrNqdOxQ0FaMWT6rkmOgtbDHpyvXs9I1lUlIXI0ceQh00FT57ufJh';
 
 /// Shows the in-app checkout sheet. Returns true when payment succeeds.
 Future<bool> showCardCheckout(
@@ -47,28 +47,16 @@ class _CardCheckoutSheet extends StatefulWidget {
 }
 
 class _CardCheckoutSheetState extends State<_CardCheckoutSheet> {
-  // Web-only card fields
-  final _cardCtrl = TextEditingController();
-  final _expiryCtrl = TextEditingController();
-  final _cvcCtrl = TextEditingController();
   final _nameCtrl = TextEditingController();
-
+  CardFieldInputDetails? _cardDetails;
   bool _loading = false;
   String? _error;
 
-  bool get _webFieldsValid =>
-      _cardCtrl.text.replaceAll(' ', '').length == 16 &&
-      _expiryCtrl.text.length == 5 &&
-      _cvcCtrl.text.length >= 3 &&
-      _nameCtrl.text.trim().isNotEmpty;
-
-  bool get _canPay => !_loading && (kIsWeb ? _webFieldsValid : true);
+  bool get _cardComplete => _cardDetails?.complete == true;
+  bool get _canPay => !_loading && _cardComplete && _nameCtrl.text.trim().isNotEmpty;
 
   @override
   void dispose() {
-    _cardCtrl.dispose();
-    _expiryCtrl.dispose();
-    _cvcCtrl.dispose();
     _nameCtrl.dispose();
     super.dispose();
   }
@@ -89,41 +77,44 @@ class _CardCheckoutSheetState extends State<_CardCheckoutSheet> {
       _error = null;
     });
     try {
-      bool paid = false;
+      // Ensure Stripe is initialised with the publishable key
+      Stripe.publishableKey = _publishableKey;
 
-      if (kIsWeb) {
-        // Server-side confirmation — edge function uses secret key so there
-        // are no publishable-key surface restrictions.
-        paid = await confirmCardWithStripeJs(
-          supabase: widget.supabase,
-          amountSek: widget.amountSek,
-          cardNumber: _cardCtrl.text,
-          expiry: _expiryCtrl.text,
-          cvc: _cvcCtrl.text,
-          name: _nameCtrl.text.trim(),
-        );
-      } else {
-        // Mobile: flutter_stripe payment sheet
-        final clientSecret = await _fetchClientSecret();
-        await Stripe.instance.initPaymentSheet(
-          paymentSheetParameters: SetupPaymentSheetParameters(
-            paymentIntentClientSecret: clientSecret,
-            merchantDisplayName: 'Guldly',
+      // Get a PaymentIntent client secret from our edge function
+      final clientSecret = await _fetchClientSecret();
+
+      // Create a PaymentMethod from the CardField (tokenised by Stripe.js —
+      // no raw card data ever leaves the browser)
+      final pm = await Stripe.instance.createPaymentMethod(
+        params: PaymentMethodParams.card(
+          paymentMethodData: PaymentMethodData(
+            billingDetails: BillingDetails(name: _nameCtrl.text.trim()),
           ),
-        );
-        try {
-          await Stripe.instance.presentPaymentSheet();
-          paid = true;
-        } on StripeException catch (e) {
-          if (e.error.code == FailureCode.Canceled) {
-            paid = false;
-          } else {
-            throw Exception(e.error.localizedMessage ?? 'Payment failed');
-          }
-        }
-      }
+        ),
+      );
 
+      // Confirm the PaymentIntent server-side with the pm id we just got
+      final response = await widget.supabase.functions.invoke(
+        'create-payment-intent',
+        body: {
+          'clientSecret': clientSecret,
+          'paymentMethodId': pm.id,
+        },
+      );
+
+      final data = response.data as Map<String, dynamic>?;
+      if (data == null) throw Exception('Payment service unavailable');
+      if (data['error'] != null) throw Exception(data['error'] as String);
+
+      final paid = data['succeeded'] == true;
       if (mounted) Navigator.of(context).pop(paid);
+    } on StripeException catch (e) {
+      if (mounted) {
+        setState(() {
+          _error = e.error.localizedMessage ?? 'Card declined';
+          _loading = false;
+        });
+      }
     } catch (e) {
       if (mounted) {
         setState(() {
@@ -185,8 +176,8 @@ class _CardCheckoutSheetState extends State<_CardCheckoutSheet> {
                           fontWeight: FontWeight.w700,
                           color: AppConstants.black)),
                   Text('Secured by Stripe',
-                      style:
-                          TextStyle(fontSize: 12, color: AppConstants.subtitle)),
+                      style: TextStyle(
+                          fontSize: 12, color: AppConstants.subtitle)),
                 ],
               ),
             ]),
@@ -216,87 +207,72 @@ class _CardCheckoutSheetState extends State<_CardCheckoutSheet> {
                 ),
               ]),
             ),
+            const SizedBox(height: 20),
 
-            // Card fields — web only (Stripe.js tokenises them)
-            if (kIsWeb) ...[
-              const SizedBox(height: 20),
-              const Text('Card Details',
-                  style: TextStyle(
-                      fontSize: 15,
-                      fontWeight: FontWeight.w600,
-                      color: AppConstants.black)),
-              const SizedBox(height: 12),
-              _Field(
-                label: 'Name on card',
-                hint: 'Full Name',
-                controller: _nameCtrl,
-                inputType: TextInputType.name,
-                onChanged: () => setState(() {}),
+            // Name field
+            const Text('Name on card',
+                style: TextStyle(fontSize: 12, color: AppConstants.subtitle)),
+            const SizedBox(height: 5),
+            TextField(
+              controller: _nameCtrl,
+              keyboardType: TextInputType.name,
+              onChanged: (_) => setState(() {}),
+              decoration: InputDecoration(
+                hintText: 'Full Name',
+                hintStyle:
+                    const TextStyle(color: Color(0xFFCCCCCC), fontSize: 14),
+                filled: true,
+                fillColor: AppConstants.background,
+                contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 14, vertical: 14),
+                border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide.none),
+                enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: const BorderSide(
+                        color: AppConstants.divider, width: 1)),
+                focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: const BorderSide(
+                        color: AppConstants.gold, width: 1.5)),
               ),
-              const SizedBox(height: 10),
-              _Field(
-                label: 'Card number',
-                hint: '4242 4242 4242 4242',
-                controller: _cardCtrl,
-                inputType: TextInputType.number,
-                maxLength: 19,
-                formatter: _CardNumberFormatter(),
-                onChanged: () => setState(() {}),
+            ),
+            const SizedBox(height: 14),
+
+            // Stripe CardField — renders Stripe Elements iframe (PCI compliant)
+            const Text('Card details',
+                style: TextStyle(fontSize: 12, color: AppConstants.subtitle)),
+            const SizedBox(height: 5),
+            CardField(
+              onCardChanged: (details) {
+                setState(() => _cardDetails = details);
+              },
+              decoration: InputDecoration(
+                filled: true,
+                fillColor: AppConstants.background,
+                contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 14, vertical: 14),
+                border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide.none),
+                enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: const BorderSide(
+                        color: AppConstants.divider, width: 1)),
+                focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: const BorderSide(
+                        color: AppConstants.gold, width: 1.5)),
               ),
-              const SizedBox(height: 10),
-              Row(children: [
-                Expanded(
-                  child: _Field(
-                    label: 'MM / YY',
-                    hint: '12 / 28',
-                    controller: _expiryCtrl,
-                    inputType: TextInputType.number,
-                    maxLength: 5,
-                    formatter: _ExpiryFormatter(),
-                    onChanged: () => setState(() {}),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: _Field(
-                    label: 'CVC',
-                    hint: '•••',
-                    controller: _cvcCtrl,
-                    inputType: TextInputType.number,
-                    maxLength: 4,
-                    obscure: true,
-                    onChanged: () => setState(() {}),
-                  ),
-                ),
-              ]),
-            ] else ...[
-              const SizedBox(height: 16),
-              Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                decoration: BoxDecoration(
-                  color: AppConstants.gold.withValues(alpha: 0.07),
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: const Row(children: [
-                  Icon(Icons.info_outline, size: 16, color: AppConstants.gold),
-                  SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      'Tap Pay to enter your card details securely via Stripe.',
-                      style: TextStyle(fontSize: 12, color: AppConstants.subtitle),
-                    ),
-                  ),
-                ]),
-              ),
-            ],
+            ),
 
             // Error banner
             if (_error != null) ...[
               const SizedBox(height: 12),
               Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                padding: const EdgeInsets.symmetric(
+                    horizontal: 12, vertical: 10),
                 decoration: BoxDecoration(
                   color: AppConstants.error.withValues(alpha: 0.08),
                   borderRadius: BorderRadius.circular(10),
@@ -368,10 +344,12 @@ class _CardCheckoutSheetState extends State<_CardCheckoutSheet> {
             const Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Icon(Icons.lock_outline, size: 13, color: AppConstants.subtitle),
+                Icon(Icons.lock_outline,
+                    size: 13, color: AppConstants.subtitle),
                 SizedBox(width: 4),
                 Text('256-bit SSL encryption · Stripe',
-                    style: TextStyle(fontSize: 11, color: AppConstants.subtitle)),
+                    style: TextStyle(
+                        fontSize: 11, color: AppConstants.subtitle)),
               ],
             ),
           ],
@@ -396,8 +374,8 @@ class _Row extends StatelessWidget {
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
         Text(label,
-            style:
-                const TextStyle(fontSize: 13, color: AppConstants.subtitle)),
+            style: const TextStyle(
+                fontSize: 13, color: AppConstants.subtitle)),
         Text(value,
             style: TextStyle(
                 fontSize: 13,
@@ -405,102 +383,5 @@ class _Row extends StatelessWidget {
                 color: color ?? AppConstants.black)),
       ],
     );
-  }
-}
-
-class _Field extends StatelessWidget {
-  final String label;
-  final String hint;
-  final TextEditingController controller;
-  final TextInputType inputType;
-  final int? maxLength;
-  final TextInputFormatter? formatter;
-  final bool obscure;
-  final VoidCallback onChanged;
-
-  const _Field({
-    required this.label,
-    required this.hint,
-    required this.controller,
-    required this.inputType,
-    required this.onChanged,
-    this.maxLength,
-    this.formatter,
-    this.obscure = false,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(label,
-            style:
-                const TextStyle(fontSize: 12, color: AppConstants.subtitle)),
-        const SizedBox(height: 5),
-        TextField(
-          controller: controller,
-          keyboardType: inputType,
-          obscureText: obscure,
-          maxLength: maxLength,
-          onChanged: (_) => onChanged(),
-          inputFormatters: [if (formatter != null) formatter!],
-          decoration: InputDecoration(
-            hintText: hint,
-            hintStyle: const TextStyle(
-                color: Color(0xFFCCCCCC), fontSize: 14),
-            counterText: '',
-            filled: true,
-            fillColor: AppConstants.background,
-            contentPadding:
-                const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
-            border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12),
-                borderSide: BorderSide.none),
-            enabledBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12),
-                borderSide:
-                    const BorderSide(color: AppConstants.divider, width: 1)),
-            focusedBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12),
-                borderSide:
-                    const BorderSide(color: AppConstants.gold, width: 1.5)),
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-class _CardNumberFormatter extends TextInputFormatter {
-  @override
-  TextEditingValue formatEditUpdate(
-      TextEditingValue old, TextEditingValue next) {
-    final digits = next.text.replaceAll(' ', '');
-    final buf = StringBuffer();
-    for (var i = 0; i < digits.length && i < 16; i++) {
-      if (i > 0 && i % 4 == 0) buf.write(' ');
-      buf.write(digits[i]);
-    }
-    final s = buf.toString();
-    return TextEditingValue(
-        text: s, selection: TextSelection.collapsed(offset: s.length));
-  }
-}
-
-class _ExpiryFormatter extends TextInputFormatter {
-  @override
-  TextEditingValue formatEditUpdate(
-      TextEditingValue old, TextEditingValue next) {
-    final digits = next.text.replaceAll('/', '');
-    if (digits.length > 4) return old;
-    final buf = StringBuffer();
-    for (var i = 0; i < digits.length; i++) {
-      if (i == 2) buf.write('/');
-      buf.write(digits[i]);
-    }
-    final s = buf.toString();
-    return TextEditingValue(
-        text: s, selection: TextSelection.collapsed(offset: s.length));
   }
 }
