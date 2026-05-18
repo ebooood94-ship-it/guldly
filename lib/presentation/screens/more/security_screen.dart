@@ -245,10 +245,39 @@ class SecurityScreen extends ConsumerWidget {
             GoldButton(
                 label: 'Update password',
                 onPressed: () async {
-                  await ref
-                      .read(authNotifierProvider)
-                      .updatePassword(ctrl.text);
-                  if (context.mounted) Navigator.pop(context);
+                  if (ctrl.text.length < 8) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('Password must be at least 8 characters'),
+                        backgroundColor: AppConstants.error,
+                      ),
+                    );
+                    return;
+                  }
+                  try {
+                    await ref
+                        .read(authNotifierProvider)
+                        .updatePassword(ctrl.text);
+                    if (context.mounted) {
+                      Navigator.pop(context);
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text('Password updated successfully'),
+                          backgroundColor: AppConstants.green,
+                        ),
+                      );
+                    }
+                  } catch (e) {
+                    if (context.mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text(
+                              e.toString().replaceFirst('Exception: ', '')),
+                          backgroundColor: AppConstants.error,
+                        ),
+                      );
+                    }
+                  }
                 }),
             const SizedBox(height: 24),
           ],

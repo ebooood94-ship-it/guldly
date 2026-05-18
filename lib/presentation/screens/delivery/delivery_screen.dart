@@ -141,9 +141,11 @@ class _DeliveryScreenState extends ConsumerState<DeliveryScreen> {
                             spacing: 8,
                             runSpacing: 8,
                             children: _suggestions.map((amt) {
+                              final available = walletAsync.value?.goldGrams ?? double.infinity;
                               final sel = _grams == amt;
+                              final disabled = amt > available;
                               return GestureDetector(
-                                onTap: () => setState(() => _grams = amt),
+                                onTap: disabled ? null : () => setState(() => _grams = amt),
                                 child: AnimatedContainer(
                                   duration: const Duration(milliseconds: 180),
                                   padding: const EdgeInsets.symmetric(
@@ -157,13 +159,17 @@ class _DeliveryScreenState extends ConsumerState<DeliveryScreen> {
                                     border: Border.all(
                                         color: sel
                                             ? AppConstants.gold
-                                            : const Color(0xFFDDDDDD)),
+                                            : disabled
+                                                ? const Color(0xFFEEEEEE)
+                                                : const Color(0xFFDDDDDD)),
                                   ),
                                   child: Text('${amt.toStringAsFixed(0)}g',
                                       style: TextStyle(
-                                          color: sel
-                                              ? AppConstants.gold
-                                              : AppConstants.black,
+                                          color: disabled
+                                              ? const Color(0xFFCCCCCC)
+                                              : sel
+                                                  ? AppConstants.gold
+                                                  : AppConstants.black,
                                           fontWeight: sel
                                               ? FontWeight.w600
                                               : FontWeight.w400)),
@@ -222,7 +228,11 @@ class _DeliveryScreenState extends ConsumerState<DeliveryScreen> {
               child: GoldButton(
                 label: 'Continue',
                 loading: _loading,
-                onPressed: (_grams > 0 && !_loading) ? _onContinue : null,
+                onPressed: (_grams > 0 &&
+                        _grams <= (walletAsync.value?.goldGrams ?? 0.0) &&
+                        !_loading)
+                    ? _onContinue
+                    : null,
               ),
             ),
           ],

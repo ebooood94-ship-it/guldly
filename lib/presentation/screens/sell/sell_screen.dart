@@ -154,9 +154,11 @@ class _SellScreenState extends ConsumerState<SellScreen> {
                               spacing: 8,
                               runSpacing: 8,
                               children: _suggestions.map((amt) {
+                                final available = walletAsync.value?.goldGrams ?? double.infinity;
                                 final sel = _grams == amt;
+                                final disabled = amt > available;
                                 return GestureDetector(
-                                  onTap: () => setState(() => _grams = amt),
+                                  onTap: disabled ? null : () => setState(() => _grams = amt),
                                   child: AnimatedContainer(
                                     duration: const Duration(milliseconds: 180),
                                     padding: const EdgeInsets.symmetric(
@@ -170,14 +172,18 @@ class _SellScreenState extends ConsumerState<SellScreen> {
                                       border: Border.all(
                                           color: sel
                                               ? AppConstants.gold
-                                              : const Color(0xFFDDDDDD)),
+                                              : disabled
+                                                  ? const Color(0xFFEEEEEE)
+                                                  : const Color(0xFFDDDDDD)),
                                     ),
                                     child: Text('${amt.toStringAsFixed(0)}g',
                                         style: TextStyle(
                                             fontSize: 13,
-                                            color: sel
-                                                ? AppConstants.gold
-                                                : AppConstants.black,
+                                            color: disabled
+                                                ? const Color(0xFFCCCCCC)
+                                                : sel
+                                                    ? AppConstants.gold
+                                                    : AppConstants.black,
                                             fontWeight: sel
                                                 ? FontWeight.w600
                                                 : FontWeight.w400)),
@@ -197,13 +203,15 @@ class _SellScreenState extends ConsumerState<SellScreen> {
             Padding(
               padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
               child: goldAsync.when(
-                data: (g) => GoldButton(
-                  label: 'Continue',
-                  loading: _loading,
-                  onPressed: (_grams > 0 && !_loading)
-                      ? () => _onContinue(g.pricePerGramSek)
-                      : null,
-                ),
+                data: (g) {
+                  final available = walletAsync.value?.goldGrams ?? 0.0;
+                  final canSell = _grams > 0 && _grams <= available && !_loading;
+                  return GoldButton(
+                    label: 'Continue',
+                    loading: _loading,
+                    onPressed: canSell ? () => _onContinue(g.pricePerGramSek) : null,
+                  );
+                },
                 loading: () =>
                     const GoldButton(label: 'Continue', onPressed: null),
                 error: (_, __) =>

@@ -4,9 +4,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import '../../../core/constants/app_constants.dart';
+import '../../../core/models/models.dart';
 import '../../../core/providers/providers.dart';
 import '../../../core/router/router.dart';
-import '../../../core/services/stripe_service.dart';
+import 'card_checkout_sheet.dart';
 import '../../widgets/common/back_header.dart';
 import '../../widgets/common/gold_button.dart';
 import '../../widgets/common/gold_card.dart';
@@ -31,15 +32,20 @@ class _BuyOnetimeScreenState extends ConsumerState<BuyOnetimeScreen> {
 
   Future<void> _onContinue(double pricePerGramSek) async {
     final paymentMethod = ref.read(selectedPaymentMethodProvider);
+
+    if (paymentMethod == 'card') {
+      final paid = await showCardCheckout(
+        context,
+        amountSek: _amountKr.toDouble(),
+        goldGrams: _amountKr / pricePerGramSek,
+        goldPricePerGramSek: pricePerGramSek,
+        supabase: ref.read(supabaseProvider),
+      );
+      if (!paid || !mounted) return;
+    }
+
     setState(() => _loading = true);
     try {
-      if (paymentMethod == 'card') {
-        final paid = await StripeService.pay(
-          amountSek: _amountKr.toDouble(),
-          supabase: ref.read(supabaseProvider),
-        );
-        if (!paid) return; // user cancelled — no error shown
-      }
       await ref.read(goldTransactionServiceProvider).buyGoldOnetime(
             amountSek: _amountKr.toDouble(),
             goldGrams: _amountKr / pricePerGramSek,
@@ -122,7 +128,7 @@ class _BuyOnetimeScreenState extends ConsumerState<BuyOnetimeScreen> {
     );
   }
 
-  Widget _buildAmountContent(goldAsync, String gramsLabel) {
+  Widget _buildAmountContent(AsyncValue<GoldPrice> goldAsync, String gramsLabel) {
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 14, 16, 20),
       child: Column(
