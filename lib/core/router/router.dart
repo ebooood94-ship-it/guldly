@@ -170,8 +170,24 @@ final routerProvider = Provider<GoRouter>((ref) {
       // ── Transaction receipt ────────────────────────────────────────────────
       GoRoute(
         path: Routes.receipt,
-        builder: (_, state) =>
-            ReceiptScreen(data: (state.extra as Map<String, dynamic>?) ?? {}),
+        builder: (_, state) {
+          // Mobile path: data passed via extra
+          final extra = state.extra as Map<String, dynamic>?;
+          if (extra != null && extra.isNotEmpty) {
+            return ReceiptScreen(data: extra);
+          }
+          // Web path: Stripe Checkout redirects back with query params
+          final q = state.uri.queryParameters;
+          return ReceiptScreen(data: {
+            'type': q['type'] ?? 'Transaction',
+            'amountSek': double.tryParse(q['amount'] ?? '0') ?? 0.0,
+            'goldGrams': double.tryParse(q['grams'] ?? ''),
+            'goldPricePerGramSek': double.tryParse(q['price'] ?? ''),
+            'paymentMethod': q['paymentMethod'] ?? 'card',
+            'frequency': q['frequency'],
+            'fromStripeRedirect': q['success'] == 'true',
+          });
+        },
       ),
     ],
   );

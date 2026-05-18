@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -7,6 +8,7 @@ import '../../../core/constants/app_constants.dart';
 import '../../../core/models/models.dart';
 import '../../../core/providers/providers.dart';
 import '../../../core/router/router.dart';
+import '../../../core/utils/web_redirect.dart';
 import '../../widgets/gold/live_badge.dart';
 import 'card_checkout_sheet.dart';
 
@@ -94,6 +96,23 @@ class _BuyRecurringScreenState extends ConsumerState<BuyRecurringScreen> {
     final amtGrams = _amountGrams(goldPrice.pricePerGramSek);
 
     if (paymentMethod == 'card') {
+      if (kIsWeb) {
+        setState(() => _loading = true);
+        try {
+          await _webStripeRedirect(amtSek, amtGrams, goldPrice.pricePerGramSek);
+        } catch (e) {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+              content: Text(e.toString().replaceFirst('Exception: ', '')),
+              backgroundColor: AppConstants.error,
+            ));
+          }
+        } finally {
+          if (mounted) setState(() => _loading = false);
+        }
+        return;
+      }
+
       final paid = await showCardCheckout(
         context,
         amountSek: amtSek,
@@ -141,6 +160,36 @@ class _BuyRecurringScreenState extends ConsumerState<BuyRecurringScreen> {
     } finally {
       if (mounted) setState(() => _loading = false);
     }
+  }
+
+  Future<void> _webStripeRedirect(
+      double amtSek, double amtGrams, double price) async {
+    final supabase = ref.read(supabaseProvider);
+    final origin = webOrigin;
+    final schedule = Uri.encodeComponent(_scheduleLabel());
+    final type = Uri.encodeComponent('Recurring Buy Setup');
+    final successUrl =
+        '$origin/#/receipt?type=$type&amount=$amtSek&grams=$amtGrams&price=$price&paymentMethod=card&frequency=$schedule&success=true';
+    final cancelUrl = '$origin/#/buy/recurring';
+
+    final response = await supabase.functions.invoke(
+      'create-payment-intent',
+      body: {
+        'mode': 'web_checkout',
+        'amount': amtSek,
+        'currency': 'sek',
+        'goldGrams': amtGrams,
+        'successUrl': successUrl,
+        'cancelUrl': cancelUrl,
+      },
+    );
+
+    final checkoutUrl = response.data?['checkoutUrl'] as String?;
+    if (checkoutUrl == null) {
+      final err = response.data?['error'] as String?;
+      throw Exception(err ?? 'Payment service unavailable');
+    }
+    redirectToUrl(checkoutUrl);
   }
 
   // ── Build ─────────────────────────────────────────────────────────────────

@@ -1,24 +1,98 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import '../../../core/constants/app_constants.dart';
+import '../../../core/providers/providers.dart';
 import '../../../core/router/router.dart';
 
-class ReceiptScreen extends StatelessWidget {
+class ReceiptScreen extends ConsumerStatefulWidget {
   final Map<String, dynamic> data;
   const ReceiptScreen({super.key, required this.data});
 
   @override
+  ConsumerState<ReceiptScreen> createState() => _ReceiptScreenState();
+}
+
+class _ReceiptScreenState extends ConsumerState<ReceiptScreen> {
+  bool _recording = false;
+
+  @override
+  void initState() {
+    super.initState();
+    // When the user returns from Stripe Checkout on web, record the transaction
+    if (widget.data['fromStripeRedirect'] == true) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => _recordTransaction());
+    }
+  }
+
+  Future<void> _recordTransaction() async {
+    setState(() => _recording = true);
+    try {
+      final amtSek = (widget.data['amountSek'] as num?)?.toDouble() ?? 0;
+      final grams = (widget.data['goldGrams'] as num?)?.toDouble() ?? 0;
+      final price = (widget.data['goldPricePerGramSek'] as num?)?.toDouble() ?? 0;
+      final frequency = widget.data['frequency'] as String?;
+
+      final svc = ref.read(goldTransactionServiceProvider);
+
+      if (frequency != null) {
+        // Recurring setup
+        await svc.createRecurringSubscription(
+          amountSek: amtSek,
+          frequency: widget.data['type']?.toString().contains('Recurring') == true
+              ? frequency.split(' · ').first
+              : 'Weekly',
+          selectedDays: ['Mon'],
+          paymentMethod: 'card',
+        );
+      } else {
+        // One-time buy
+        await svc.buyGoldOnetime(
+          amountSek: amtSek,
+          goldGrams: grams,
+          goldPricePerGramSek: price,
+          paymentMethod: 'card',
+        );
+      }
+    } catch (_) {
+      // Non-critical — the Stripe payment already succeeded; the transaction
+      // will be reconciled server-side. Just show the receipt.
+    } finally {
+      if (mounted) setState(() => _recording = false);
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final type = data['type'] as String? ?? 'Transaction';
-    final amountSek = (data['amountSek'] as num?)?.toDouble() ?? 0;
-    final goldGrams = (data['goldGrams'] as num?)?.toDouble();
-    final goldPrice = (data['goldPricePerGramSek'] as num?)?.toDouble();
-    final recipientName = data['recipientName'] as String?;
-    final recipientEmail = data['recipientEmail'] as String?;
-    final deliveryAddress = data['deliveryAddress'] as String?;
-    final paymentMethod = data['paymentMethod'] as String?;
-    final frequency = data['frequency'] as String?;
+    final type = widget.data['type'] as String? ?? 'Transaction';
+    final amountSek = (widget.data['amountSek'] as num?)?.toDouble() ?? 0;
+    final goldGrams = (widget.data['goldGrams'] as num?)?.toDouble();
+    final goldPrice = (widget.data['goldPricePerGramSek'] as num?)?.toDouble();
+    final recipientName = widget.data['recipientName'] as String?;
+    final recipientEmail = widget.data['recipientEmail'] as String?;
+    final deliveryAddress = widget.data['deliveryAddress'] as String?;
+    final paymentMethod = widget.data['paymentMethod'] as String?;
+    final frequency = widget.data['frequency'] as String?;
+    final fromStripe = widget.data['fromStripeRedirect'] == true;
+
+    // Show spinner while recording the transaction (web redirect case)
+    if (fromStripe && _recording) {
+      return const Scaffold(
+        backgroundColor: AppConstants.background,
+        body: Center(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              CircularProgressIndicator(color: AppConstants.gold),
+              SizedBox(height: 16),
+              Text('Confirming payment…',
+                  style: TextStyle(color: AppConstants.subtitle)),
+            ],
+          ),
+        ),
+      );
+    }
 
     return Scaffold(
       backgroundColor: AppConstants.background,
@@ -222,7 +296,8 @@ class _ReceiptRow extends StatelessWidget {
       children: [
         Text(
           label,
-          style: const TextStyle(fontSize: 14, color: AppConstants.subtitle),
+          style:
+              const TextStyle(fontSize: 14, color: AppConstants.subtitle),
         ),
         const SizedBox(width: 12),
         Flexible(

@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -7,6 +8,7 @@ import '../../../core/constants/app_constants.dart';
 import '../../../core/models/models.dart';
 import '../../../core/providers/providers.dart';
 import '../../../core/router/router.dart';
+import '../../../core/utils/web_redirect.dart';
 import 'card_checkout_sheet.dart';
 import '../../widgets/common/back_header.dart';
 import '../../widgets/common/gold_button.dart';
@@ -62,6 +64,25 @@ class _BuyOnetimeScreenState extends ConsumerState<BuyOnetimeScreen> {
     final amtGrams = _amountGrams(pricePerGram);
 
     if (paymentMethod == 'card') {
+      if (kIsWeb) {
+        // Web: redirect to Stripe Checkout (flutter_stripe crashes on web)
+        setState(() => _loading = true);
+        try {
+          await _webStripeRedirect(amtSek, amtGrams, pricePerGram, 'Buy Gold');
+        } catch (e) {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+              content: Text(e.toString().replaceFirst('Exception: ', '')),
+              backgroundColor: AppConstants.error,
+            ));
+          }
+        } finally {
+          if (mounted) setState(() => _loading = false);
+        }
+        return;
+      }
+
+      // Mobile: show checkout sheet
       final paid = await showCardCheckout(
         context,
         amountSek: amtSek,
@@ -102,6 +123,39 @@ class _BuyOnetimeScreenState extends ConsumerState<BuyOnetimeScreen> {
     } finally {
       if (mounted) setState(() => _loading = false);
     }
+  }
+
+  Future<void> _webStripeRedirect(
+    double amtSek,
+    double amtGrams,
+    double price,
+    String type,
+  ) async {
+    final supabase = ref.read(supabaseProvider);
+    final origin = webOrigin;
+    final encodedType = Uri.encodeComponent(type);
+    final successUrl =
+        '$origin/#/receipt?type=$encodedType&amount=$amtSek&grams=$amtGrams&price=$price&paymentMethod=card&success=true';
+    final cancelUrl = '$origin/#/buy/onetime';
+
+    final response = await supabase.functions.invoke(
+      'create-payment-intent',
+      body: {
+        'mode': 'web_checkout',
+        'amount': amtSek,
+        'currency': 'sek',
+        'goldGrams': amtGrams,
+        'successUrl': successUrl,
+        'cancelUrl': cancelUrl,
+      },
+    );
+
+    final checkoutUrl = response.data?['checkoutUrl'] as String?;
+    if (checkoutUrl == null) {
+      final err = response.data?['error'] as String?;
+      throw Exception(err ?? 'Payment service unavailable');
+    }
+    redirectToUrl(checkoutUrl);
   }
 
   @override

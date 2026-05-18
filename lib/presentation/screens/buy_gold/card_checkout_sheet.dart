@@ -1,4 +1,3 @@
-import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter_stripe/flutter_stripe.dart';
 import 'package:guldly/core/constants/app_constants.dart';
@@ -49,23 +48,10 @@ class _CardCheckoutSheet extends StatefulWidget {
 }
 
 class _CardCheckoutSheetState extends State<_CardCheckoutSheet> {
-  final _nameCtrl = TextEditingController();
-  CardFieldInputDetails? _cardDetails;
   bool _loading = false;
   String? _error;
 
-  bool get _cardComplete => _cardDetails?.complete == true;
-
-  /// On web we need name + complete card. On mobile the payment sheet handles it.
-  bool get _canPay =>
-      !_loading &&
-      (!kIsWeb || (_cardComplete && _nameCtrl.text.trim().isNotEmpty));
-
-  @override
-  void dispose() {
-    _nameCtrl.dispose();
-    super.dispose();
-  }
+  bool get _canPay => !_loading;
 
   Future<String> _fetchClientSecret() async {
     final response = await widget.supabase.functions.invoke(
@@ -88,54 +74,23 @@ class _CardCheckoutSheetState extends State<_CardCheckoutSheet> {
     try {
       Stripe.publishableKey = _stripePublishableKey;
 
-      if (kIsWeb) {
-        // ── Web ──────────────────────────────────────────────────────────
-        // CardField renders Stripe Elements iframes — no raw card data ever
-        // leaves the browser. createPaymentMethod tokenises via Stripe.js.
-        final clientSecret = await _fetchClientSecret();
+      // Mobile: flutter_stripe payment sheet
+      final clientSecret = await _fetchClientSecret();
 
-        final pm = await Stripe.instance.createPaymentMethod(
-          params: PaymentMethodParams.card(
-            paymentMethodData: PaymentMethodData(
-              billingDetails: BillingDetails(name: _nameCtrl.text.trim()),
+      await Stripe.instance.initPaymentSheet(
+        paymentSheetParameters: SetupPaymentSheetParameters(
+          paymentIntentClientSecret: clientSecret,
+          merchantDisplayName: 'Guldly',
+          appearance: const PaymentSheetAppearance(
+            colors: PaymentSheetAppearanceColors(
+              primary: AppConstants.gold,
             ),
           ),
-        );
+        ),
+      );
 
-        // Confirm the PaymentIntent server-side (secret key, no restrictions)
-        final response = await widget.supabase.functions.invoke(
-          'create-payment-intent',
-          body: {
-            'clientSecret': clientSecret,
-            'paymentMethodId': pm.id,
-          },
-        );
-
-        final data = response.data as Map<String, dynamic>?;
-        if (data == null) throw Exception('Payment service unavailable');
-        if (data['error'] != null) throw Exception(data['error'] as String);
-
-        if (mounted) Navigator.of(context).pop(data['succeeded'] == true);
-      } else {
-        // ── Mobile ───────────────────────────────────────────────────────
-        // presentPaymentSheet shows Stripe's native card UI.
-        final clientSecret = await _fetchClientSecret();
-
-        await Stripe.instance.initPaymentSheet(
-          paymentSheetParameters: SetupPaymentSheetParameters(
-            paymentIntentClientSecret: clientSecret,
-            merchantDisplayName: 'Guldly',
-            appearance: const PaymentSheetAppearance(
-              colors: PaymentSheetAppearanceColors(
-                primary: AppConstants.gold,
-              ),
-            ),
-          ),
-        );
-
-        await Stripe.instance.presentPaymentSheet();
-        if (mounted) Navigator.of(context).pop(true);
-      }
+      await Stripe.instance.presentPaymentSheet();
+      if (mounted) Navigator.of(context).pop(true);
     } on StripeException catch (e) {
       if (e.error.code == FailureCode.Canceled) {
         if (mounted) setState(() => _loading = false);
@@ -241,90 +196,28 @@ class _CardCheckoutSheetState extends State<_CardCheckoutSheet> {
               ]),
             ),
 
-            // Web: Stripe Elements card fields
-            if (kIsWeb) ...[
-              const SizedBox(height: 20),
-              const Text('Name on card',
-                  style: TextStyle(
-                      fontSize: 12, color: AppConstants.subtitle)),
-              const SizedBox(height: 5),
-              TextField(
-                controller: _nameCtrl,
-                keyboardType: TextInputType.name,
-                onChanged: (_) => setState(() {}),
-                decoration: InputDecoration(
-                  hintText: 'Full Name',
-                  hintStyle: const TextStyle(
-                      color: Color(0xFFCCCCCC), fontSize: 14),
-                  filled: true,
-                  fillColor: AppConstants.background,
-                  contentPadding: const EdgeInsets.symmetric(
-                      horizontal: 14, vertical: 14),
-                  border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: BorderSide.none),
-                  enabledBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: const BorderSide(
-                          color: AppConstants.divider, width: 1)),
-                  focusedBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: const BorderSide(
-                          color: AppConstants.gold, width: 1.5)),
-                ),
+            // Mobile: Stripe payment sheet handles card entry
+            const SizedBox(height: 16),
+            Container(
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+              decoration: BoxDecoration(
+                color: AppConstants.gold.withValues(alpha: 0.07),
+                borderRadius: BorderRadius.circular(10),
               ),
-              const SizedBox(height: 12),
-              const Text('Card details',
-                  style: TextStyle(
-                      fontSize: 12, color: AppConstants.subtitle)),
-              const SizedBox(height: 5),
-              // CardField renders Stripe's own iframes — PCI compliant,
-              // no raw card data exposed to our app code.
-              CardField(
-                onCardChanged: (details) =>
-                    setState(() => _cardDetails = details),
-                decoration: InputDecoration(
-                  filled: true,
-                  fillColor: AppConstants.background,
-                  contentPadding: const EdgeInsets.symmetric(
-                      horizontal: 14, vertical: 14),
-                  border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: BorderSide.none),
-                  enabledBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: const BorderSide(
-                          color: AppConstants.divider, width: 1)),
-                  focusedBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: const BorderSide(
-                          color: AppConstants.gold, width: 1.5)),
-                ),
-              ),
-            ] else ...[
-              // Mobile: Stripe payment sheet handles card entry
-              const SizedBox(height: 16),
-              Container(
-                padding: const EdgeInsets.symmetric(
-                    horizontal: 14, vertical: 10),
-                decoration: BoxDecoration(
-                  color: AppConstants.gold.withValues(alpha: 0.07),
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: const Row(children: [
-                  Icon(Icons.lock_outline,
-                      size: 16, color: AppConstants.gold),
-                  SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      'Tap Pay to enter your card details securely via Stripe.',
-                      style: TextStyle(
-                          fontSize: 12, color: AppConstants.subtitle),
-                    ),
+              child: const Row(children: [
+                Icon(Icons.lock_outline,
+                    size: 16, color: AppConstants.gold),
+                SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'Tap Pay to enter your card details securely via Stripe.',
+                    style: TextStyle(
+                        fontSize: 12, color: AppConstants.subtitle),
                   ),
-                ]),
-              ),
-            ],
+                ),
+              ]),
+            ),
 
             // Error banner
             if (_error != null) ...[
