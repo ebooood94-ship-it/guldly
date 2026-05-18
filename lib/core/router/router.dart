@@ -185,6 +185,7 @@ final routerProvider = Provider<GoRouter>((ref) {
             'goldPricePerGramSek': double.tryParse(q['price'] ?? ''),
             'paymentMethod': q['paymentMethod'] ?? 'card',
             'frequency': q['frequency'],
+            'addFunds': q['addFunds'],
             'fromStripeRedirect': q['success'] == 'true',
           });
         },

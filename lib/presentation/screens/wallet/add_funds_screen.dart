@@ -1,15 +1,17 @@
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
-import 'package:guldly/core/constants/app_constants.dart';
-import '../../widgets/common/gold_button.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:intl/intl.dart';
+import '../../../core/constants/app_constants.dart';
 import '../../../core/providers/providers.dart';
 import '../../../core/router/router.dart';
 import '../../../core/services/stripe_service.dart';
+import '../../../core/utils/web_redirect.dart';
 import '../../widgets/common/back_header.dart';
-import '../../widgets/common/payment_row.dart';
+import '../../widgets/common/gold_button.dart';
 import '../../widgets/common/gold_card.dart';
-import 'package:intl/intl.dart';
+import '../../widgets/common/payment_row.dart';
 
 class AddFundsScreen extends ConsumerStatefulWidget {
   const AddFundsScreen({super.key});
@@ -28,11 +30,16 @@ class _AddFundsScreenState extends ConsumerState<AddFundsScreen> {
     setState(() => _loading = true);
     try {
       if (_paymentMethod == 'card') {
+        if (kIsWeb) {
+          await _webStripeRedirect();
+          return; // page will navigate away
+        }
+        // Mobile: flutter_stripe payment sheet
         final paid = await StripeService.pay(
           amountSek: _amountKr.toDouble(),
           supabase: ref.read(supabaseProvider),
         );
-        if (!paid) return; // user cancelled — no error shown
+        if (!paid || !mounted) return;
       }
       await ref.read(goldTransactionServiceProvider).addFunds(
             amountSek: _amountKr.toDouble(),
@@ -58,6 +65,33 @@ class _AddFundsScreenState extends ConsumerState<AddFundsScreen> {
     } finally {
       if (mounted) setState(() => _loading = false);
     }
+  }
+
+  Future<void> _webStripeRedirect() async {
+    final supabase = ref.read(supabaseProvider);
+    final origin = webOrigin;
+    final type = Uri.encodeComponent('Add Funds');
+    final successUrl =
+        '$origin/#/receipt?type=$type&amount=${_amountKr.toDouble()}&paymentMethod=card&addFunds=true&success=true';
+    final cancelUrl = '$origin/#/wallet/add-funds';
+
+    final response = await supabase.functions.invoke(
+      'create-payment-intent',
+      body: {
+        'mode': 'web_checkout',
+        'amount': _amountKr.toDouble(),
+        'currency': 'sek',
+        'successUrl': successUrl,
+        'cancelUrl': cancelUrl,
+      },
+    );
+
+    final checkoutUrl = response.data?['checkoutUrl'] as String?;
+    if (checkoutUrl == null) {
+      final err = response.data?['error'] as String?;
+      throw Exception(err ?? 'Payment service unavailable');
+    }
+    redirectToUrl(checkoutUrl);
   }
 
   @override

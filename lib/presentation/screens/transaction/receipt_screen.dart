@@ -33,21 +33,23 @@ class _ReceiptScreenState extends ConsumerState<ReceiptScreen> {
       final grams = (widget.data['goldGrams'] as num?)?.toDouble() ?? 0;
       final price = (widget.data['goldPricePerGramSek'] as num?)?.toDouble() ?? 0;
       final frequency = widget.data['frequency'] as String?;
+      final isAddFunds = widget.data['addFunds'] == true ||
+          widget.data['addFunds'] == 'true';
 
       final svc = ref.read(goldTransactionServiceProvider);
 
-      if (frequency != null) {
-        // Recurring setup
-        await svc.createRecurringSubscription(
+      if (isAddFunds) {
+        await svc.addFunds(amountSek: amtSek, paymentMethod: 'card');
+      } else if (frequency != null) {
+        // Recurring setup — record the first instalment as a one-time buy
+        // (the recurring scheduler will handle future charges)
+        await svc.buyGoldOnetime(
           amountSek: amtSek,
-          frequency: widget.data['type']?.toString().contains('Recurring') == true
-              ? frequency.split(' · ').first
-              : 'Weekly',
-          selectedDays: ['Mon'],
+          goldGrams: grams,
+          goldPricePerGramSek: price,
           paymentMethod: 'card',
         );
       } else {
-        // One-time buy
         await svc.buyGoldOnetime(
           amountSek: amtSek,
           goldGrams: grams,
@@ -56,8 +58,7 @@ class _ReceiptScreenState extends ConsumerState<ReceiptScreen> {
         );
       }
     } catch (_) {
-      // Non-critical — the Stripe payment already succeeded; the transaction
-      // will be reconciled server-side. Just show the receipt.
+      // Non-critical — Stripe payment succeeded; transaction reconciled server-side.
     } finally {
       if (mounted) setState(() => _recording = false);
     }
