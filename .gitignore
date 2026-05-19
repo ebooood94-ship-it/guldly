@@ -1,6 +1,9 @@
 # Claude Code local session data
 .claude/
 
+# Supabase CLI temp files
+supabase/.temp/
+
 # Miscellaneous
 *.class
 *.log
