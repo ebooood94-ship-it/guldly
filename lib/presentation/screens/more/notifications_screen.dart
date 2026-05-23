@@ -1,10 +1,11 @@
 import 'package:flutter/material.dart';
-import 'package:guldly/core/constants/app_constants.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../../widgets/common/back_header.dart';
+import 'package:google_fonts/google_fonts.dart';
+import '../../../core/constants/app_constants.dart';
 import '../../../core/models/models.dart';
 import '../../../core/providers/providers.dart';
-import '../../widgets/common/gold_card.dart';
+import '../../widgets/common/back_header.dart';
+import '../../widgets/common/section_label.dart';
 
 class NotificationsScreen extends ConsumerWidget {
   const NotificationsScreen({super.key});
@@ -17,19 +18,26 @@ class NotificationsScreen extends ConsumerWidget {
       backgroundColor: AppConstants.background,
       body: SafeArea(
         child: SingleChildScrollView(
-          padding: const EdgeInsets.symmetric(horizontal: 20),
+          padding: const EdgeInsets.symmetric(
+              horizontal: AppConstants.screenPadding),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              const BackHeader(title: 'Aviseringar'),
               const SizedBox(height: 16),
-              const BackHeader(title: 'Notification'),
-              const SizedBox(height: 24),
               prefsAsync.when(
                 data: (prefs) => prefs == null
-                    ? const Center(child: Text('No preferences found'))
+                    ? Center(
+                        child: Text('Inga inställningar hittades.',
+                            style: GoogleFonts.inter(
+                                color: AppConstants.subtitle, fontSize: 14)),
+                      )
                     : _NotifBody(prefs: prefs),
-                loading: () => const Center(child: CircularProgressIndicator()),
-                error: (e, _) => Text('$e'),
+                loading: () => const Center(
+                    child: CircularProgressIndicator(color: AppConstants.gold)),
+                error: (e, _) => Text('$e',
+                    style: GoogleFonts.inter(
+                        color: AppConstants.error, fontSize: 13)),
               ),
               const SizedBox(height: 32),
             ],
@@ -53,121 +61,133 @@ class _NotifBody extends ConsumerWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        _NotifSection(title: 'Push Notifications', items: [
+        const SectionLabel('PUSH-NOTISER'),
+        _NotifCard(items: [
           _NotifItem(
-              'Price Alerts',
-              'Get price change updates',
-              prefs.pushPriceAlerts,
-              (v) => update(prefs.copyWith(pushPriceAlerts: v))),
+            'Prisaviseringar',
+            'Få uppdateringar vid prisförändringar',
+            prefs.pushPriceAlerts,
+            (v) => update(prefs.copyWith(pushPriceAlerts: v)),
+          ),
           _NotifItem(
-              'Transaction Updates',
-              'Stay updated on transactions',
-              prefs.pushTransactionUpdates,
-              (v) => update(prefs.copyWith(pushTransactionUpdates: v))),
+            'Transaktionsuppdateringar',
+            'Håll koll på dina transaktioner',
+            prefs.pushTransactionUpdates,
+            (v) => update(prefs.copyWith(pushTransactionUpdates: v)),
+          ),
           _NotifItem(
-              'Promotions and Offers',
-              'Receive the latest promos',
-              prefs.pushPromotions,
-              (v) => update(prefs.copyWith(pushPromotions: v))),
+            'Erbjudanden',
+            'Ta del av kampanjer och erbjudanden',
+            prefs.pushPromotions,
+            (v) => update(prefs.copyWith(pushPromotions: v)),
+          ),
         ]),
-        const SizedBox(height: 20),
-        _NotifSection(title: 'Email Notifications', items: [
+        const SizedBox(height: AppConstants.sectionGap),
+        const SectionLabel('E-POSTAVISERINGAR'),
+        _NotifCard(items: [
           _NotifItem(
-              'Weekly Reports',
-              'Summary of your weekly activity',
-              prefs.emailWeeklyReports,
-              (v) => update(prefs.copyWith(emailWeeklyReports: v))),
+            'Veckorapporter',
+            'Sammanfattning av din veckoaktivitet',
+            prefs.emailWeeklyReports,
+            (v) => update(prefs.copyWith(emailWeeklyReports: v)),
+          ),
           _NotifItem(
-              'Monthly Statements',
-              'Summary of your monthly activity',
-              prefs.emailMonthlyStatements,
-              (v) => update(prefs.copyWith(emailMonthlyStatements: v))),
+            'Månadsutdrag',
+            'Sammanfattning av din månadsaktivitet',
+            prefs.emailMonthlyStatements,
+            (v) => update(prefs.copyWith(emailMonthlyStatements: v)),
+          ),
           _NotifItem(
-              'Security Alerts',
-              'Alerts for security issues',
-              prefs.emailSecurityAlerts,
-              (v) => update(prefs.copyWith(emailSecurityAlerts: v))),
+            'Säkerhetsaviseringar',
+            'Varningar vid säkerhetsproblem',
+            prefs.emailSecurityAlerts,
+            (v) => update(prefs.copyWith(emailSecurityAlerts: v)),
+          ),
           _NotifItem(
-              'Product Updates',
-              'Stay informed about new features',
-              prefs.emailProductUpdates,
-              (v) => update(prefs.copyWith(emailProductUpdates: v))),
+            'Produktuppdateringar',
+            'Håll dig informerad om nya funktioner',
+            prefs.emailProductUpdates,
+            (v) => update(prefs.copyWith(emailProductUpdates: v)),
+          ),
         ]),
-        const SizedBox(height: 20),
-        _NotifSection(title: 'SMS Notifications', items: [
-          _NotifItem('Enable SMS Notifications', 'Receive updates via text',
-              prefs.smsEnabled, (v) => update(prefs.copyWith(smsEnabled: v))),
+        const SizedBox(height: AppConstants.sectionGap),
+        const SectionLabel('SMS-AVISERINGAR'),
+        _NotifCard(items: [
           _NotifItem(
-              'Transaction Updates',
-              'SMS alerts for transactions',
-              prefs.smsTransactionUpdates,
-              (v) => update(prefs.copyWith(smsTransactionUpdates: v))),
+            'Aktivera SMS',
+            'Ta emot uppdateringar via SMS',
+            prefs.smsEnabled,
+            (v) => update(prefs.copyWith(smsEnabled: v)),
+          ),
+          _NotifItem(
+            'Transaktioner via SMS',
+            'SMS-aviseringar för transaktioner',
+            prefs.smsTransactionUpdates,
+            (v) => update(prefs.copyWith(smsTransactionUpdates: v)),
+          ),
         ]),
       ],
     );
   }
 }
 
-class _NotifSection extends StatelessWidget {
-  final String title;
+class _NotifCard extends StatelessWidget {
   final List<_NotifItem> items;
-  const _NotifSection({required this.title, required this.items});
+  const _NotifCard({required this.items});
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(title,
-            style: const TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.w700,
-                color: AppConstants.black)),
-        const SizedBox(height: 12),
-        GoldCard(
-          child: Column(
-            children: items.asMap().entries.map((e) {
-              return Column(
-                children: [
-                  Padding(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 16, vertical: 14),
-                    child: Row(
-                      children: [
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(e.value.title,
-                                  style: const TextStyle(
-                                      fontSize: 14, color: AppConstants.black)),
-                              Text(e.value.subtitle,
-                                  style: const TextStyle(
-                                      fontSize: 12,
-                                      color: AppConstants.subtitle)),
-                            ],
-                          ),
-                        ),
-                        Switch(
-                          value: e.value.value,
-                          onChanged: e.value.onChanged,
-                          activeThumbColor: AppConstants.gold,
-                        ),
-                      ],
+    return Container(
+      decoration: BoxDecoration(
+        color: AppConstants.card,
+        borderRadius: BorderRadius.circular(AppConstants.cardRadius),
+        border: Border.all(color: AppConstants.divider, width: 1),
+      ),
+      child: Column(
+        children: items.asMap().entries.map((e) {
+          final item = e.value;
+          final isLast = e.key == items.length - 1;
+          return Column(
+            children: [
+              Padding(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(item.title,
+                              style: GoogleFonts.inter(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w500,
+                                  color: AppConstants.black)),
+                          Text(item.subtitle,
+                              style: GoogleFonts.inter(
+                                  fontSize: 12, color: AppConstants.subtitle)),
+                        ],
+                      ),
                     ),
-                  ),
-                  if (e.key < items.length - 1)
-                    const Divider(
-                        height: 1,
-                        color: AppConstants.divider,
-                        indent: 16,
-                        endIndent: 16),
-                ],
-              );
-            }).toList(),
-          ),
-        ),
-      ],
+                    Switch(
+                      value: item.value,
+                      onChanged: item.onChanged,
+                      activeThumbColor: AppConstants.gold,
+                    ),
+                  ],
+                ),
+              ),
+              if (!isLast)
+                const Divider(
+                    height: 1,
+                    thickness: 1,
+                    color: AppConstants.divider,
+                    indent: 16,
+                    endIndent: 16),
+            ],
+          );
+        }).toList(),
+      ),
     );
   }
 }

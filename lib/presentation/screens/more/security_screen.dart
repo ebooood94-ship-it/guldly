@@ -1,77 +1,85 @@
 import 'package:flutter/material.dart';
-import 'package:guldly/core/constants/app_constants.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../../widgets/common/back_header.dart';
-import '../../widgets/common/gold_card.dart';
-import '../../widgets/common/gold_button.dart';
+import 'package:google_fonts/google_fonts.dart';
+import '../../../core/constants/app_constants.dart';
 import '../../../core/providers/providers.dart';
-import '../../widgets/common/menu_row.dart';
+import '../../widgets/common/app_snackbar.dart';
+import '../../widgets/common/back_header.dart';
+import '../../widgets/common/gold_button.dart';
 import '../../widgets/common/gold_text_field.dart';
+import '../../widgets/common/section_label.dart';
 
 class SecurityScreen extends ConsumerWidget {
   const SecurityScreen({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final tips = [
-      'Use a strong, unique password for your account',
-      'Never share your login credentials with anyone',
-      'Keep your account information up to date',
-      'Log out from shared or public devices',
-      'Enable multi-factor authentication for extra security',
+    const tips = [
+      'Använd ett starkt, unikt lösenord för ditt konto.',
+      'Dela aldrig dina inloggningsuppgifter med någon.',
+      'Håll dina kontouppgifter uppdaterade.',
+      'Logga ut från delade eller offentliga enheter.',
+      'Aktivera tvåstegsverifiering för extra säkerhet.',
     ];
 
     return Scaffold(
       backgroundColor: AppConstants.background,
       body: SafeArea(
         child: SingleChildScrollView(
-          padding: const EdgeInsets.symmetric(horizontal: 20),
+          padding: const EdgeInsets.symmetric(
+              horizontal: AppConstants.screenPadding),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              const BackHeader(title: 'Säkerhet'),
               const SizedBox(height: 16),
-              const BackHeader(title: 'Security'),
-              const SizedBox(height: 24),
-              GoldCard(
+              const SectionLabel('KONTOSÄKERHET'),
+              Container(
+                decoration: BoxDecoration(
+                  color: AppConstants.card,
+                  borderRadius:
+                      BorderRadius.circular(AppConstants.cardRadius),
+                  border: Border.all(color: AppConstants.divider, width: 1),
+                ),
                 child: Column(
                   children: [
-                    MenuRow(
-                        icon: Icons.lock_outline,
-                        title: 'Password',
-                        subtitle: 'Change your account password',
-                        onTap: () => _showChangePassword(context, ref)),
+                    _SecurityRow(
+                      icon: Icons.lock_outline,
+                      title: 'Lösenord',
+                      subtitle: 'Ändra ditt kontolösenord',
+                      onTap: () => _showChangePassword(context, ref),
+                    ),
                     const Divider(
                         height: 1,
+                        thickness: 1,
                         color: AppConstants.divider,
                         indent: 16,
                         endIndent: 16),
-                    MenuRow(
-                        icon: Icons.security_outlined,
-                        title: 'Multi-Factor Authentication',
-                        subtitle: 'Add an extra layer of security',
-                        onTap: () => _showMfaDialog(context)),
+                    _SecurityRow(
+                      icon: Icons.security_outlined,
+                      title: 'Tvåstegsverifiering',
+                      subtitle: 'Lägg till ett extra skyddslager',
+                      onTap: () => _showMfaDialog(context),
+                    ),
                     const Divider(
                         height: 1,
+                        thickness: 1,
                         color: AppConstants.divider,
                         indent: 16,
                         endIndent: 16),
-                    MenuRow(
-                        icon: Icons.devices_outlined,
-                        title: 'Login Sessions',
-                        subtitle: 'View and manage active sessions',
-                        onTap: () => _showSessionsSheet(context, ref)),
+                    _SecurityRow(
+                      icon: Icons.devices_outlined,
+                      title: 'Inloggningssessioner',
+                      subtitle: 'Visa och hantera aktiva sessioner',
+                      onTap: () => _showSessionsSheet(context, ref),
+                    ),
                   ],
                 ),
               ),
-              const SizedBox(height: 28),
-              const Text('Security Tips',
-                  style: TextStyle(
-                      fontSize: 17,
-                      fontWeight: FontWeight.w700,
-                      color: AppConstants.black)),
-              const SizedBox(height: 14),
+              const SizedBox(height: AppConstants.sectionGap),
+              const SectionLabel('SÄKERHETSTIPS'),
               ...tips.map((tip) => Padding(
-                    padding: const EdgeInsets.only(bottom: 10),
+                    padding: const EdgeInsets.only(bottom: 12),
                     child: Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
@@ -79,9 +87,12 @@ class SecurityScreen extends ConsumerWidget {
                             color: AppConstants.green, size: 18),
                         const SizedBox(width: 10),
                         Expanded(
-                            child: Text(tip,
-                                style: const TextStyle(
-                                    fontSize: 13, color: AppConstants.black))),
+                          child: Text(tip,
+                              style: GoogleFonts.inter(
+                                  fontSize: 13,
+                                  color: AppConstants.black,
+                                  height: 1.4)),
+                        ),
                       ],
                     ),
                   )),
@@ -97,17 +108,25 @@ class SecurityScreen extends ConsumerWidget {
     showDialog(
       context: context,
       builder: (_) => AlertDialog(
-        title: const Text('Multi-Factor Authentication'),
-        content: const Text(
-          'MFA via authenticator app is coming soon. '
-          'You\'ll be able to add an extra layer of security to your account.',
-          style: TextStyle(fontSize: 13),
+        backgroundColor: AppConstants.card,
+        shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(AppConstants.cardRadius)),
+        title: Text('Tvåstegsverifiering',
+            style: GoogleFonts.inter(
+                fontSize: 16,
+                fontWeight: FontWeight.w700,
+                color: AppConstants.black)),
+        content: Text(
+          'Tvåstegsverifiering via autentiseringsapp kommer snart. '
+          'Du kommer att kunna lägga till ett extra skyddslager för ditt konto.',
+          style: GoogleFonts.inter(fontSize: 13, color: AppConstants.subtitle),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text('Got it',
-                style: TextStyle(color: AppConstants.gold)),
+            child: Text('Förstår',
+                style: GoogleFonts.inter(
+                    color: AppConstants.gold, fontWeight: FontWeight.w600)),
           ),
         ],
       ),
@@ -126,6 +145,7 @@ class SecurityScreen extends ConsumerWidget {
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
+      backgroundColor: AppConstants.card,
       builder: (_) => Padding(
         padding: const EdgeInsets.fromLTRB(20, 12, 20, 32),
         child: Column(
@@ -143,9 +163,9 @@ class SecurityScreen extends ConsumerWidget {
               ),
             ),
             const SizedBox(height: 20),
-            const Text('Active Sessions',
-                style: TextStyle(
-                    fontSize: 18,
+            Text('Aktiva sessioner',
+                style: GoogleFonts.inter(
+                    fontSize: 16,
                     fontWeight: FontWeight.w700,
                     color: AppConstants.black)),
             const SizedBox(height: 16),
@@ -153,8 +173,9 @@ class SecurityScreen extends ConsumerWidget {
               width: double.infinity,
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
-                color: AppConstants.card,
+                color: AppConstants.background,
                 borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: AppConstants.divider),
               ),
               child: Row(
                 children: [
@@ -162,7 +183,7 @@ class SecurityScreen extends ConsumerWidget {
                     width: 42,
                     height: 42,
                     decoration: BoxDecoration(
-                      color: AppConstants.gold.withValues(alpha: 0.12),
+                      color: AppConstants.goldLight,
                       borderRadius: BorderRadius.circular(10),
                     ),
                     child: const Icon(Icons.phone_android_rounded,
@@ -173,31 +194,29 @@ class SecurityScreen extends ConsumerWidget {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Text('This device',
-                            style: TextStyle(
+                        Text('Den här enheten',
+                            style: GoogleFonts.inter(
                                 fontSize: 14,
                                 fontWeight: FontWeight.w600,
                                 color: AppConstants.black)),
-                        const SizedBox(height: 2),
                         Text(email,
-                            style: const TextStyle(
+                            style: GoogleFonts.inter(
                                 fontSize: 12, color: AppConstants.subtitle)),
-                        const SizedBox(height: 2),
-                        Text('Last active: $lastSignIn',
-                            style: const TextStyle(
+                        Text('Senast aktiv: $lastSignIn',
+                            style: GoogleFonts.inter(
                                 fontSize: 12, color: AppConstants.subtitle)),
                       ],
                     ),
                   ),
                   Container(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 8, vertical: 4),
                     decoration: BoxDecoration(
                       color: AppConstants.green.withValues(alpha: 0.12),
                       borderRadius: BorderRadius.circular(6),
                     ),
-                    child: const Text('Active',
-                        style: TextStyle(
+                    child: Text('Aktiv',
+                        style: GoogleFonts.inter(
                             fontSize: 11,
                             fontWeight: FontWeight.w600,
                             color: AppConstants.green)),
@@ -212,11 +231,11 @@ class SecurityScreen extends ConsumerWidget {
   }
 
   String _formatDate(DateTime dt) {
-    final months = [
-      'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
+    const months = [
+      'jan', 'feb', 'mar', 'apr', 'maj', 'jun',
+      'jul', 'aug', 'sep', 'okt', 'nov', 'dec'
     ];
-    return '${months[dt.month - 1]} ${dt.day}, ${dt.year}';
+    return '${dt.day} ${months[dt.month - 1]} ${dt.year}';
   }
 
   void _showChangePassword(BuildContext context, WidgetRef ref) {
@@ -224,62 +243,113 @@ class SecurityScreen extends ConsumerWidget {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
+      backgroundColor: AppConstants.card,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
       builder: (_) => Padding(
         padding: EdgeInsets.only(
-            bottom: MediaQuery.of(context).viewInsets.bottom,
-            left: 20,
-            right: 20,
-            top: 24),
+          bottom: MediaQuery.of(context).viewInsets.bottom + 24,
+          left: 20,
+          right: 20,
+          top: 24,
+        ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text('New Password',
-                style: TextStyle(fontSize: 17, fontWeight: FontWeight.w700)),
+            Text('Nytt lösenord',
+                style: GoogleFonts.inter(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w700,
+                    color: AppConstants.black)),
             const SizedBox(height: 16),
             GoldTextField(
-                label: '',
-                hint: 'Enter new password',
-                controller: ctrl,
-                obscure: true),
+              label: 'LÖSENORD',
+              hint: 'Minst 8 tecken',
+              controller: ctrl,
+              obscure: true,
+            ),
             const SizedBox(height: 16),
             GoldButton(
-                label: 'Update password',
-                onPressed: () async {
-                  if (ctrl.text.length < 8) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text('Password must be at least 8 characters'),
-                        backgroundColor: AppConstants.error,
-                      ),
-                    );
-                    return;
+              label: 'UPPDATERA',
+              onPressed: () async {
+                if (ctrl.text.length < 8) {
+                  AppSnackbar.warning(
+                      context, 'Lösenordet måste vara minst 8 tecken.');
+                  return;
+                }
+                try {
+                  await ref
+                      .read(authNotifierProvider)
+                      .updatePassword(ctrl.text);
+                  if (context.mounted) {
+                    Navigator.pop(context);
+                    AppSnackbar.success(
+                        context, 'Lösenordet har uppdaterats.');
                   }
-                  try {
-                    await ref
-                        .read(authNotifierProvider)
-                        .updatePassword(ctrl.text);
-                    if (context.mounted) {
-                      Navigator.pop(context);
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text('Password updated successfully'),
-                          backgroundColor: AppConstants.green,
-                        ),
-                      );
-                    }
-                  } catch (e) {
-                    if (context.mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content: Text(
-                              e.toString().replaceFirst('Exception: ', '')),
-                          backgroundColor: AppConstants.error,
-                        ),
-                      );
-                    }
-                  }
-                }),
-            const SizedBox(height: 24),
+                } catch (e) {
+                  if (context.mounted) AppSnackbar.error(context, e);
+                }
+              },
+            ),
+            const SizedBox(height: 8),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _SecurityRow extends StatelessWidget {
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final VoidCallback onTap;
+
+  const _SecurityRow({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      behavior: HitTestBehavior.opaque,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        child: Row(
+          children: [
+            Container(
+              width: 40,
+              height: 40,
+              decoration: BoxDecoration(
+                color: AppConstants.goldLight,
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Icon(icon, color: AppConstants.gold, size: 20),
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(title,
+                      style: GoogleFonts.inter(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w500,
+                          color: AppConstants.black)),
+                  Text(subtitle,
+                      style: GoogleFonts.inter(
+                          fontSize: 12, color: AppConstants.subtitle)),
+                ],
+              ),
+            ),
+            const Icon(Icons.chevron_right,
+                color: AppConstants.subtitle, size: 20),
           ],
         ),
       ),

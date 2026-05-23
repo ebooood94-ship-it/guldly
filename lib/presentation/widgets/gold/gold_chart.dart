@@ -13,41 +13,13 @@ class GoldChart extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      decoration: BoxDecoration(
-        color: AppConstants.card,
-        borderRadius: BorderRadius.circular(20),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.05),
-            blurRadius: 12,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Text(
-            'Gold',
-            style: TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.w700,
-              color: AppConstants.black,
-            ),
-          ),
-          const SizedBox(height: 2),
-          const Text(
-            'Performance over time',
-            style: TextStyle(fontSize: 13, color: AppConstants.subtitle),
-          ),
-          const SizedBox(height: 12),
-          SizedBox(height: 140, child: _GoldLineChart(period: selectedPeriod)),
-          const SizedBox(height: 12),
-          _buildPeriodSelector(),
-        ],
-      ),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        SizedBox(height: 120, child: _GoldLineChart(period: selectedPeriod)),
+        const SizedBox(height: 12),
+        _buildPeriodSelector(),
+      ],
     );
   }
 

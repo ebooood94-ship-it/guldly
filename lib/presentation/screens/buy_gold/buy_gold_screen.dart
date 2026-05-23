@@ -1,10 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import '../../../core/constants/app_constants.dart';
 import '../../../core/providers/providers.dart';
+import '../../widgets/common/back_header.dart';
 import '../../widgets/common/gold_button.dart';
+import '../../widgets/common/section_label.dart';
 
 class BuyGoldScreen extends ConsumerStatefulWidget {
   const BuyGoldScreen({super.key});
@@ -14,9 +17,8 @@ class BuyGoldScreen extends ConsumerStatefulWidget {
 }
 
 class _BuyGoldScreenState extends ConsumerState<BuyGoldScreen> {
-  final int _selectedTab = 1;
-  String _purchaseMode = 'recurring'; // 'recurring' | 'onetime'
-  String _paymentMethod = 'wallet'; // 'wallet' | 'card' | 'bank'
+  String _purchaseMode = 'recurring';
+  String _paymentMethod = 'wallet';
 
   @override
   Widget build(BuildContext context) {
@@ -25,208 +27,158 @@ class _BuyGoldScreenState extends ConsumerState<BuyGoldScreen> {
       body: SafeArea(
         child: Column(
           children: [
+            BackHeader(
+              title: 'Köp guld',
+              useSerifTitle: true,
+              trailing: GestureDetector(
+                onTap: () {},
+                child: const Icon(Icons.notifications_outlined,
+                    color: AppConstants.subtitle, size: 22),
+              ),
+            ),
             Expanded(
               child: SingleChildScrollView(
-                padding: const EdgeInsets.symmetric(horizontal: 20),
+                padding: const EdgeInsets.symmetric(
+                    horizontal: AppConstants.screenPadding),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const SizedBox(height: 20),
-                    _buildHeader(),
-                    const SizedBox(height: 20),
-                    _buildRateCard(),
-                    const SizedBox(height: 28),
-                    _buildSectionLabel('Purchase mode'),
-                    const SizedBox(height: 12),
+                    const SizedBox(height: 16),
+                    _buildLivePriceCard(),
+                    const SizedBox(height: AppConstants.sectionGap),
+                    const SectionLabel('VÄLJ KÖPSÄTT'),
                     _buildPurchaseModeCard(),
-                    const SizedBox(height: 28),
-                    _buildSectionLabel('Payment method'),
-                    const SizedBox(height: 12),
+                    const SizedBox(height: AppConstants.sectionGap),
+                    const SectionLabel('BETALMETOD'),
                     _buildPaymentMethodCard(),
                     const SizedBox(height: 24),
                   ],
                 ),
               ),
             ),
-            _buildContinueButton(),
-            _buildBottomNav(),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(
+                  AppConstants.screenPadding, 8, AppConstants.screenPadding, 20),
+              child: GoldButton(
+                label: 'FORTSÄTT',
+                onPressed: () {
+                  ref.read(selectedPaymentMethodProvider.notifier).state =
+                      _paymentMethod;
+                  if (_purchaseMode == 'recurring') {
+                    context.push('/buy/recurring');
+                  } else {
+                    context.push('/buy/onetime');
+                  }
+                },
+              ),
+            ),
           ],
         ),
       ),
     );
   }
 
-  // ── Header ─────────────────────────────────────────────────────────────────
-  Widget _buildHeader() {
-    return Row(
-      children: [
-        GestureDetector(
-          onTap: () => Navigator.of(context).pop(),
-          child:
-              const Icon(Icons.arrow_back, color: AppConstants.black, size: 24),
-        ),
-        const SizedBox(width: 12),
-        const Text(
-          'Buy Gold',
-          style: TextStyle(
-            fontSize: 22,
-            fontWeight: FontWeight.w700,
-            color: AppConstants.black,
-          ),
-        ),
-      ],
-    );
-  }
-
-  // ── Rate card ──────────────────────────────────────────────────────────────
-  Widget _buildRateCard() {
+  Widget _buildLivePriceCard() {
     final goldAsync = ref.watch(goldPriceProvider);
     return Container(
       decoration: BoxDecoration(
         color: AppConstants.card,
-        borderRadius: BorderRadius.circular(18),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.05),
-            blurRadius: 10,
-            offset: const Offset(0, 3),
-          ),
-        ],
+        borderRadius: BorderRadius.circular(AppConstants.cardRadius),
+        border: Border.all(color: AppConstants.divider, width: 1),
       ),
-      padding: const EdgeInsets.all(18),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      padding: const EdgeInsets.all(16),
+      child: Row(
         children: [
-          Row(
-            children: [
-              Container(
-                width: 36,
-                height: 36,
-                decoration: BoxDecoration(
-                  color: AppConstants.gold.withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: const Icon(Icons.layers_rounded,
-                    color: AppConstants.gold, size: 20),
-              ),
-              const SizedBox(width: 10),
-              const Text(
-                'Rate',
-                style: TextStyle(
-                    color: AppConstants.subtitle,
-                    fontSize: 14,
-                    fontWeight: FontWeight.w500),
-              ),
-            ],
+          Container(
+            width: 40,
+            height: 40,
+            decoration: BoxDecoration(
+              color: AppConstants.goldLight,
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: const Icon(Icons.layers_rounded,
+                color: AppConstants.gold, size: 20),
           ),
-          const SizedBox(height: 10),
-          goldAsync.when(
-            data: (gold) => Row(
-              crossAxisAlignment: CrossAxisAlignment.center,
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'kr.${NumberFormat('#,###.##').format(gold.pricePerOzSek)}',
-                  style: const TextStyle(
-                    fontSize: 26,
-                    fontWeight: FontWeight.w700,
-                    color: AppConstants.black,
-                    letterSpacing: -0.5,
+                  'GULDPRIS',
+                  style: GoogleFonts.inter(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w500,
+                    color: AppConstants.subtitle,
+                    letterSpacing: 1.0,
                   ),
                 ),
-                const SizedBox(width: 10),
-                Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                  decoration: BoxDecoration(
-                    color: AppConstants.green.withValues(alpha: 0.12),
-                    borderRadius: BorderRadius.circular(20),
+                const SizedBox(height: 2),
+                goldAsync.when(
+                  data: (g) => Text(
+                    '${NumberFormat('#,##0.##', 'sv_SE').format(g.pricePerGramSek).replaceAll(',', ' ')} kr/g',
+                    style: GoogleFonts.playfairDisplay(
+                      fontSize: 18,
+                      fontStyle: FontStyle.italic,
+                      color: AppConstants.black,
+                    ),
                   ),
-                  child: const Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(Icons.circle, color: AppConstants.green, size: 7),
-                      SizedBox(width: 4),
-                      Text(
-                        'Live',
-                        style: TextStyle(
-                          color: AppConstants.green,
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ],
-                  ),
+                  loading: () => Text('Laddar…',
+                      style: GoogleFonts.inter(
+                          fontSize: 14, color: AppConstants.subtitle)),
+                  error: (_, __) => Text('Ej tillgängligt',
+                      style: GoogleFonts.inter(
+                          fontSize: 14, color: AppConstants.error)),
                 ),
               ],
             ),
-            loading: () => Container(
-              height: 32,
-              width: 140,
-              decoration: BoxDecoration(
-                color: Colors.grey.shade200,
-                borderRadius: BorderRadius.circular(6),
+          ),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+            decoration: BoxDecoration(
+              color: AppConstants.green.withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(20),
+            ),
+            child: Text(
+              '+1,30%',
+              style: GoogleFonts.inter(
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+                color: AppConstants.green,
               ),
             ),
-            error: (_, __) => const Text('Price unavailable',
-                style: TextStyle(color: AppConstants.error)),
-          ),
-          const SizedBox(height: 4),
-          const Text(
-            'Per troy ounce  •  Real-time pricing',
-            style: TextStyle(color: AppConstants.subtitle, fontSize: 12),
           ),
         ],
       ),
     );
   }
 
-  // ── Section label ──────────────────────────────────────────────────────────
-  Widget _buildSectionLabel(String text) {
-    return Text(
-      text,
-      style: const TextStyle(
-        fontSize: 17,
-        fontWeight: FontWeight.w700,
-        color: AppConstants.black,
-      ),
-    );
-  }
-
-  // ── Purchase mode card ─────────────────────────────────────────────────────
   Widget _buildPurchaseModeCard() {
     return Container(
       decoration: BoxDecoration(
         color: AppConstants.card,
-        borderRadius: BorderRadius.circular(18),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.05),
-            blurRadius: 10,
-            offset: const Offset(0, 3),
-          ),
-        ],
+        borderRadius: BorderRadius.circular(AppConstants.cardRadius),
+        border: Border.all(color: AppConstants.divider, width: 1),
       ),
       child: Column(
         children: [
-          _PurchaseModeRow(
+          _RadioRow(
             icon: Icons.repeat_rounded,
-            iconBg: const Color(0xFFE8F0FE),
-            iconColor: const Color(0xFF5B8DEF),
-            title: 'Recurring Plan',
-            subtitle:
-                'Automate your gold purchases with a\nplan that fits your lifestyle.',
+            iconBg: AppConstants.goldLight,
+            iconColor: AppConstants.gold,
+            title: 'Återkommande plan',
+            subtitle: 'Automatisera dina guldköp med en plan.',
             value: 'recurring',
             groupValue: _purchaseMode,
             onChanged: (v) => setState(() => _purchaseMode = v),
             showDivider: true,
           ),
-          _PurchaseModeRow(
+          _RadioRow(
             icon: Icons.monetization_on_outlined,
-            iconBg: const Color(0xFFF3E8FF),
-            iconColor: const Color(0xFF9B59B6),
-            title: 'One-time purchase',
-            subtitle:
-                'Make a quick, one-time gold investment\nwhenever you like.',
+            iconBg: AppConstants.giftIconBg,
+            iconColor: AppConstants.violet,
+            title: 'Engångsköp',
+            subtitle: 'Gör ett snabbt engångsinvestering i guld.',
             value: 'onetime',
             groupValue: _purchaseMode,
             onChanged: (v) => setState(() => _purchaseMode = v),
@@ -237,56 +189,48 @@ class _BuyGoldScreenState extends ConsumerState<BuyGoldScreen> {
     );
   }
 
-  // ── Payment method card ────────────────────────────────────────────────────
   Widget _buildPaymentMethodCard() {
     return Container(
       decoration: BoxDecoration(
         color: AppConstants.card,
-        borderRadius: BorderRadius.circular(18),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.05),
-            blurRadius: 10,
-            offset: const Offset(0, 3),
-          ),
-        ],
+        borderRadius: BorderRadius.circular(AppConstants.cardRadius),
+        border: Border.all(color: AppConstants.divider, width: 1),
       ),
       child: Column(
         children: [
-          _PaymentMethodRow(
+          _RadioRow(
             icon: Icons.account_balance_wallet_outlined,
-            iconBg: const Color(0xFFF0F0F0),
-            iconColor: AppConstants.subtitle,
-            title: 'Wallet Balance',
+            iconBg: AppConstants.goldLight,
+            iconColor: AppConstants.gold,
+            title: 'Plånbok',
             subtitle: ref.watch(walletProvider).when(
                   data: (w) =>
-                      'Available Balance: kr.${NumberFormat('#,###.##').format(w?.balanceSek ?? 0)}',
-                  loading: () => 'Loading...',
-                  error: (_, __) => 'Available Balance: kr.0',
+                      'Tillgängligt: ${NumberFormat('#,##0', 'sv_SE').format(w?.balanceSek ?? 0).replaceAll(',', ' ')} kr',
+                  loading: () => 'Laddar…',
+                  error: (_, __) => 'Tillgängligt: 0 kr',
                 ),
             value: 'wallet',
             groupValue: _paymentMethod,
             onChanged: (v) => setState(() => _paymentMethod = v),
             showDivider: true,
           ),
-          _PaymentMethodRow(
+          _RadioRow(
             icon: Icons.credit_card_rounded,
-            iconBg: const Color(0xFFF0F0F0),
-            iconColor: AppConstants.subtitle,
-            title: 'Credit/Debit Card',
-            subtitle: null,
-            cardLogos: true,
+            iconBg: AppConstants.buyIconBg,
+            iconColor: AppConstants.goldDark,
+            title: 'Bankkort',
+            subtitle: 'Visa •••• 4242',
             value: 'card',
             groupValue: _paymentMethod,
             onChanged: (v) => setState(() => _paymentMethod = v),
             showDivider: true,
           ),
-          _PaymentMethodRow(
+          _RadioRow(
             icon: Icons.account_balance_rounded,
-            iconBg: const Color(0xFFF0F0F0),
-            iconColor: AppConstants.subtitle,
-            title: 'Bank Transfer',
-            subtitle: 'ACH Transfer (3–5 business days)',
+            iconBg: AppConstants.deliveryIconBg,
+            iconColor: AppConstants.navy,
+            title: 'Direktöverföring',
+            subtitle: 'BankID signering',
             value: 'bank',
             groupValue: _paymentMethod,
             onChanged: (v) => setState(() => _paymentMethod = v),
@@ -296,95 +240,9 @@ class _BuyGoldScreenState extends ConsumerState<BuyGoldScreen> {
       ),
     );
   }
-
-  Widget _buildContinueButton() {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 8, 20, 8),
-      child: GoldButton(
-        label: 'Continue',
-        onPressed: () {
-          ref.read(selectedPaymentMethodProvider.notifier).state =
-              _paymentMethod;
-          if (_purchaseMode == 'recurring') {
-            context.push('/buy/recurring');
-          } else {
-            context.push('/buy/onetime');
-          }
-        },
-      ),
-    );
-  }
-
-  // ── Bottom nav ─────────────────────────────────────────────────────────────
-  Widget _buildBottomNav() {
-    final items = [
-      const _NavItem(icon: Icons.home_rounded, label: 'Home'),
-      const _NavItem(icon: Icons.shopping_bag_outlined, label: 'Buy'),
-      const _NavItem(
-          icon: Icons.account_balance_wallet_outlined, label: 'Wallet'),
-      const _NavItem(icon: Icons.pie_chart_outline_rounded, label: 'Portfolio'),
-      const _NavItem(icon: Icons.menu_rounded, label: 'More'),
-    ];
-
-    return Container(
-      decoration: BoxDecoration(
-        color: AppConstants.card,
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.07),
-            blurRadius: 16,
-            offset: const Offset(0, -4),
-          ),
-        ],
-      ),
-      padding: const EdgeInsets.symmetric(vertical: 8),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceAround,
-        children: items.asMap().entries.map((e) {
-          final isSelected = e.key == _selectedTab;
-          return GestureDetector(
-            onTap: () {
-              switch (e.key) {
-                case 0:
-                  context.go('/home');
-                case 1:
-                  break; // already on Buy
-                case 2:
-                  context.go('/wallet');
-                case 3:
-                  context.go('/portfolio');
-                case 4:
-                  context.go('/more');
-              }
-            },
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(e.value.icon,
-                    color:
-                        isSelected ? AppConstants.gold : AppConstants.subtitle,
-                    size: 24),
-                const SizedBox(height: 3),
-                Text(
-                  e.value.label,
-                  style: TextStyle(
-                    color:
-                        isSelected ? AppConstants.gold : AppConstants.subtitle,
-                    fontSize: 11,
-                    fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400,
-                  ),
-                ),
-              ],
-            ),
-          );
-        }).toList(),
-      ),
-    );
-  }
 }
 
-// ─── Purchase Mode Row ────────────────────────────────────────────────────────
-class _PurchaseModeRow extends StatelessWidget {
+class _RadioRow extends StatelessWidget {
   final IconData icon;
   final Color iconBg;
   final Color iconColor;
@@ -395,7 +253,7 @@ class _PurchaseModeRow extends StatelessWidget {
   final ValueChanged<String> onChanged;
   final bool showDivider;
 
-  const _PurchaseModeRow({
+  const _RadioRow({
     required this.icon,
     required this.iconBg,
     required this.iconColor,
@@ -416,44 +274,47 @@ class _PurchaseModeRow extends StatelessWidget {
       child: Column(
         children: [
           Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
             child: Row(
               children: [
                 Container(
-                  width: 42,
-                  height: 42,
+                  width: 40,
+                  height: 40,
                   decoration: BoxDecoration(
                     color: iconBg,
-                    borderRadius: BorderRadius.circular(12),
+                    borderRadius: BorderRadius.circular(10),
                   ),
-                  child: Icon(icon, color: iconColor, size: 22),
+                  child: Icon(icon, color: iconColor, size: 20),
                 ),
-                const SizedBox(width: 14),
+                const SizedBox(width: 12),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(
-                        title,
-                        style: const TextStyle(
-                          fontSize: 15,
-                          fontWeight: FontWeight.w600,
-                          color: AppConstants.black,
-                        ),
-                      ),
-                      const SizedBox(height: 3),
-                      Text(
-                        subtitle,
-                        style: const TextStyle(
-                            fontSize: 12,
-                            color: AppConstants.subtitle,
-                            height: 1.4),
-                      ),
+                      Text(title,
+                          style: GoogleFonts.inter(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w600,
+                              color: AppConstants.black)),
+                      const SizedBox(height: 2),
+                      Text(subtitle,
+                          style: GoogleFonts.inter(
+                              fontSize: 12, color: AppConstants.subtitle)),
                     ],
                   ),
                 ),
-                const SizedBox(width: 10),
-                _GoldRadio(selected: selected),
+                AnimatedContainer(
+                  duration: const Duration(milliseconds: 180),
+                  width: 20,
+                  height: 20,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    border: Border.all(
+                      color: selected ? AppConstants.gold : AppConstants.divider,
+                      width: selected ? 6 : 2,
+                    ),
+                  ),
+                ),
               ],
             ),
           ),
@@ -461,158 +322,11 @@ class _PurchaseModeRow extends StatelessWidget {
             const Divider(
                 height: 1,
                 thickness: 1,
-                color: AppConstants.background,
+                color: AppConstants.divider,
                 indent: 16,
                 endIndent: 16),
         ],
       ),
     );
   }
-}
-
-// ─── Payment Method Row ───────────────────────────────────────────────────────
-class _PaymentMethodRow extends StatelessWidget {
-  final IconData icon;
-  final Color iconBg;
-  final Color iconColor;
-  final String title;
-  final String? subtitle;
-  final bool cardLogos;
-  final String value;
-  final String groupValue;
-  final ValueChanged<String> onChanged;
-  final bool showDivider;
-
-  const _PaymentMethodRow({
-    required this.icon,
-    required this.iconBg,
-    required this.iconColor,
-    required this.title,
-    this.subtitle,
-    this.cardLogos = false,
-    required this.value,
-    required this.groupValue,
-    required this.onChanged,
-    required this.showDivider,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final selected = value == groupValue;
-    return GestureDetector(
-      onTap: () => onChanged(value),
-      behavior: HitTestBehavior.opaque,
-      child: Column(
-        children: [
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-            child: Row(
-              children: [
-                Container(
-                  width: 42,
-                  height: 42,
-                  decoration: BoxDecoration(
-                    color: iconBg,
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Icon(icon, color: iconColor, size: 22),
-                ),
-                const SizedBox(width: 14),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        title,
-                        style: const TextStyle(
-                          fontSize: 15,
-                          fontWeight: FontWeight.w600,
-                          color: AppConstants.black,
-                        ),
-                      ),
-                      const SizedBox(height: 3),
-                      if (subtitle != null)
-                        Text(
-                          subtitle!,
-                          style: const TextStyle(
-                              fontSize: 12, color: AppConstants.subtitle),
-                        ),
-                      if (cardLogos) _buildCardLogos(),
-                    ],
-                  ),
-                ),
-                const SizedBox(width: 10),
-                _GoldRadio(selected: selected),
-              ],
-            ),
-          ),
-          if (showDivider)
-            const Divider(
-                height: 1,
-                thickness: 1,
-                color: AppConstants.background,
-                indent: 16,
-                endIndent: 16),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildCardLogos() {
-    final logos = [
-      {'label': 'VISA', 'color': const Color(0xFF1A1F71)},
-      {'label': 'MC', 'color': const Color(0xFFEB001B)},
-      {'label': 'AMEX', 'color': const Color(0xFF2E77BC)},
-    ];
-    return Row(
-      children: logos.map((l) {
-        return Container(
-          margin: const EdgeInsets.only(right: 5, top: 4),
-          padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
-          decoration: BoxDecoration(
-            border: Border.all(color: const Color(0xFFDDDDDD)),
-            borderRadius: BorderRadius.circular(4),
-          ),
-          child: Text(
-            l['label'] as String,
-            style: TextStyle(
-              fontSize: 9,
-              fontWeight: FontWeight.w800,
-              color: l['color'] as Color,
-              letterSpacing: 0.3,
-            ),
-          ),
-        );
-      }).toList(),
-    );
-  }
-}
-
-// ─── Gold Radio Button ────────────────────────────────────────────────────────
-class _GoldRadio extends StatelessWidget {
-  final bool selected;
-  const _GoldRadio({required this.selected});
-
-  @override
-  Widget build(BuildContext context) {
-    return AnimatedContainer(
-      duration: const Duration(milliseconds: 200),
-      width: 22,
-      height: 22,
-      decoration: BoxDecoration(
-        shape: BoxShape.circle,
-        border: Border.all(
-          color: selected ? AppConstants.gold : const Color(0xFFCCCCCC),
-          width: selected ? 6 : 2,
-        ),
-      ),
-    );
-  }
-}
-
-// ─── Nav Item Model ───────────────────────────────────────────────────────────
-class _NavItem {
-  final IconData icon;
-  final String label;
-  const _NavItem({required this.icon, required this.label});
 }

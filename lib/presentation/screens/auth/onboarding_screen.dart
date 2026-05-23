@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../../core/constants/app_constants.dart';
 import '../../../core/router/router.dart';
+import '../../widgets/common/gold_button.dart';
 
 class OnboardingScreen extends ConsumerStatefulWidget {
   const OnboardingScreen({super.key});
@@ -19,34 +21,34 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
   static const _pages = [
     _OnboardingPage(
       icon: Icons.bar_chart_rounded,
-      title: 'Invest in Physical Gold',
+      title: 'Investera i fysiskt guld',
       subtitle:
-          'Buy real, allocated gold starting from just kr.100. Own something tangible.',
+          'Köp riktigt, allokerat guld från bara 100 kr. Äg något verkligt och beständigt.',
     ),
     _OnboardingPage(
       icon: Icons.bolt_rounded,
-      title: 'Live Prices in SEK',
+      title: 'Livspriser i SEK',
       subtitle:
-          'Gold prices update every minute, directly from international markets — always in Swedish Kronor.',
+          'Guldpriset uppdateras varje minut direkt från internationella marknader — alltid i svenska kronor.',
     ),
     _OnboardingPage(
       icon: Icons.local_shipping_outlined,
-      title: 'Store or Deliver',
+      title: 'Förvara eller leverera',
       subtitle:
-          'Keep your gold in secure vault storage or request physical delivery straight to your door.',
+          'Förvara ditt guld i säker valv eller begär fysisk leverans direkt hem till dig.',
     ),
   ];
-
-  Future<void> _finish() async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool('onboarding_complete', true);
-    if (mounted) context.go(Routes.home);
-  }
 
   @override
   void dispose() {
     _controller.dispose();
     super.dispose();
+  }
+
+  Future<void> _finish() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('onboarding_complete', true);
+    if (mounted) context.go(Routes.home);
   }
 
   @override
@@ -58,16 +60,22 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
       body: SafeArea(
         child: Column(
           children: [
-            // Skip
             Align(
               alignment: Alignment.topRight,
-              child: TextButton(
-                onPressed: _finish,
-                child: const Text('Skip',
-                    style: TextStyle(color: AppConstants.subtitle)),
+              child: Padding(
+                padding: const EdgeInsets.only(top: 8, right: 16),
+                child: GestureDetector(
+                  onTap: _finish,
+                  child: Text(
+                    'Hoppa över',
+                    style: GoogleFonts.inter(
+                        color: AppConstants.subtitle,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w500),
+                  ),
+                ),
               ),
             ),
-            // Pages
             Expanded(
               child: PageView.builder(
                 controller: _controller,
@@ -76,7 +84,6 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
                 itemBuilder: (_, i) => _pages[i],
               ),
             ),
-            // Dots
             Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: List.generate(_pages.length, (i) {
@@ -95,32 +102,17 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
               }),
             ),
             const SizedBox(height: 32),
-            // CTA
             Padding(
-              padding: const EdgeInsets.fromLTRB(20, 0, 20, 32),
-              child: SizedBox(
-                width: double.infinity,
-                child: ElevatedButton(
-                  onPressed: isLast
-                      ? _finish
-                      : () => _controller.nextPage(
-                            duration: const Duration(milliseconds: 300),
-                            curve: Curves.easeInOut,
-                          ),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppConstants.gold,
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(vertical: 16),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(14),
-                    ),
-                  ),
-                  child: Text(
-                    isLast ? 'Get started' : 'Next',
-                    style: const TextStyle(
-                        fontSize: 16, fontWeight: FontWeight.w600),
-                  ),
-                ),
+              padding: const EdgeInsets.fromLTRB(
+                  AppConstants.screenPadding, 0, AppConstants.screenPadding, 32),
+              child: GoldButton(
+                label: isLast ? 'KOM IGÅNG' : 'NÄSTA',
+                onPressed: isLast
+                    ? _finish
+                    : () => _controller.nextPage(
+                          duration: const Duration(milliseconds: 300),
+                          curve: Curves.easeInOut,
+                        ),
               ),
             ),
           ],
@@ -134,8 +126,12 @@ class _OnboardingPage extends StatelessWidget {
   final IconData icon;
   final String title;
   final String subtitle;
-  const _OnboardingPage(
-      {required this.icon, required this.title, required this.subtitle});
+
+  const _OnboardingPage({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -147,28 +143,27 @@ class _OnboardingPage extends StatelessWidget {
           Container(
             width: 120,
             height: 120,
-            decoration: BoxDecoration(
-              color: AppConstants.gold.withValues(alpha: 0.12),
+            decoration: const BoxDecoration(
+              color: AppConstants.goldLight,
               shape: BoxShape.circle,
             ),
-            child: Icon(icon, size: 56, color: AppConstants.gold),
+            child: Icon(icon, size: 52, color: AppConstants.gold),
           ),
           const SizedBox(height: 36),
           Text(
             title,
             textAlign: TextAlign.center,
-            style: const TextStyle(
+            style: GoogleFonts.playfairDisplay(
               fontSize: 24,
-              fontWeight: FontWeight.w700,
+              fontStyle: FontStyle.italic,
               color: AppConstants.black,
-              letterSpacing: -0.5,
             ),
           ),
           const SizedBox(height: 16),
           Text(
             subtitle,
             textAlign: TextAlign.center,
-            style: const TextStyle(
+            style: GoogleFonts.inter(
               fontSize: 15,
               color: AppConstants.subtitle,
               height: 1.5,

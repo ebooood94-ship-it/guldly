@@ -1,32 +1,68 @@
 import 'package:flutter/material.dart';
-import '../../../core/constants/app_constants.dart';
 import 'package:go_router/go_router.dart';
+import 'package:google_fonts/google_fonts.dart';
+import '../../../core/constants/app_constants.dart';
 
-class BackHeader extends StatelessWidget {
+class BackHeader extends StatelessWidget implements PreferredSizeWidget {
   final String title;
-  const BackHeader({super.key, required this.title});
+  final bool useSerifTitle;
+  final Widget? trailing;
+
+  const BackHeader({
+    super.key,
+    required this.title,
+    this.useSerifTitle = false,
+    this.trailing,
+  });
+
+  @override
+  Size get preferredSize => const Size.fromHeight(56);
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
-      child: Stack(
-        alignment: Alignment.center,
-        children: [
-          Align(
-            alignment: Alignment.centerLeft,
-            child: GestureDetector(
-              onTap: () => context.pop(),
-              child: const Icon(Icons.arrow_back,
-                  color: AppConstants.black, size: 22),
+    final titleStyle = useSerifTitle
+        ? GoogleFonts.playfairDisplay(
+            fontSize: 22,
+            fontStyle: FontStyle.italic,
+            color: AppConstants.gold,
+            fontWeight: FontWeight.w600,
+          )
+        : GoogleFonts.inter(
+            fontSize: 18,
+            fontWeight: FontWeight.w600,
+            color: AppConstants.black,
+          );
+
+    return SizedBox(
+      height: 56,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: AppConstants.screenPadding),
+        child: Stack(
+          alignment: Alignment.center,
+          children: [
+            Align(
+              alignment: Alignment.centerLeft,
+              child: GestureDetector(
+                onTap: () => context.pop(),
+                behavior: HitTestBehavior.opaque,
+                child: const Padding(
+                  padding: EdgeInsets.all(4),
+                  child: Icon(
+                    Icons.arrow_back,
+                    color: AppConstants.gold,
+                    size: 22,
+                  ),
+                ),
+              ),
             ),
-          ),
-          Text(title,
-              style: const TextStyle(
-                  fontSize: 17,
-                  fontWeight: FontWeight.w600,
-                  color: AppConstants.black)),
-        ],
+            Text(title, style: titleStyle),
+            if (trailing != null)
+              Align(
+                alignment: Alignment.centerRight,
+                child: trailing!,
+              ),
+          ],
+        ),
       ),
     );
   }

@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_stripe/flutter_stripe.dart';
-import 'package:guldly/core/constants/app_constants.dart';
+import '../../../core/constants/app_constants.dart';
 import 'package:intl/intl.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -115,7 +115,7 @@ class _CardCheckoutSheetState extends State<_CardCheckoutSheet> {
   @override
   Widget build(BuildContext context) {
     final bottom = MediaQuery.of(context).viewInsets.bottom;
-    final fmt = NumberFormat('#,###.##');
+    final fmt = NumberFormat('#,##0.##', 'sv_SE');
 
     return Container(
       decoration: const BoxDecoration(
@@ -157,7 +157,7 @@ class _CardCheckoutSheetState extends State<_CardCheckoutSheet> {
               const Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text('Checkout',
+                  Text('Kassan',
                       style: TextStyle(
                           fontSize: 18,
                           fontWeight: FontWeight.w700,
@@ -179,17 +179,17 @@ class _CardCheckoutSheetState extends State<_CardCheckoutSheet> {
               ),
               child: Column(children: [
                 _SummaryRow(
-                    'Gold', '${widget.goldGrams.toStringAsFixed(4)}g'),
+                    'Guld', '${widget.goldGrams.toStringAsFixed(4).replaceAll('.', ',')}g'),
                 const SizedBox(height: 8),
-                _SummaryRow('Price per gram',
-                    'kr.${fmt.format(widget.goldPricePerGramSek)}'),
+                _SummaryRow('Pris per gram',
+                    '${fmt.format(widget.goldPricePerGramSek).replaceAll(',', ' ')} kr'),
                 const Padding(
                   padding: EdgeInsets.symmetric(vertical: 10),
                   child: Divider(height: 1, color: AppConstants.divider),
                 ),
                 _SummaryRow(
-                  'Total',
-                  'kr.${fmt.format(widget.amountSek)}',
+                  'Totalt',
+                  '${fmt.format(widget.amountSek).replaceAll(',', ' ')} kr',
                   bold: true,
                   color: AppConstants.gold,
                 ),
@@ -211,7 +211,7 @@ class _CardCheckoutSheetState extends State<_CardCheckoutSheet> {
                 SizedBox(width: 8),
                 Expanded(
                   child: Text(
-                    'Tap Pay to enter your card details securely via Stripe.',
+                    'Tryck Betala för att ange kortuppgifter säkert via Stripe.',
                     style: TextStyle(
                         fontSize: 12, color: AppConstants.subtitle),
                   ),
@@ -281,7 +281,7 @@ class _CardCheckoutSheetState extends State<_CardCheckoutSheet> {
                                   color: Colors.white, strokeWidth: 2),
                             )
                           : Text(
-                              'Pay kr.${NumberFormat('#,###').format(widget.amountSek)}',
+                              'Betala ${NumberFormat('#,##0', 'sv_SE').format(widget.amountSek).replaceAll(',', ' ')} kr',
                               style: const TextStyle(
                                   color: Colors.white,
                                   fontSize: 16,

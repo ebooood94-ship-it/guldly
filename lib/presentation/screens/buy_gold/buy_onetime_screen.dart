@@ -3,17 +3,18 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import '../../../core/constants/app_constants.dart';
-import '../../../core/models/models.dart';
 import '../../../core/providers/providers.dart';
 import '../../../core/router/router.dart';
 import '../../../core/utils/web_redirect.dart';
-import 'card_checkout_sheet.dart';
+import '../../widgets/common/app_snackbar.dart';
 import '../../widgets/common/back_header.dart';
 import '../../widgets/common/gold_button.dart';
-import '../../widgets/common/gold_card.dart';
-import '../../widgets/gold/live_badge.dart';
+import '../../widgets/common/section_label.dart';
+import '../../widgets/common/suggestion_pills.dart';
+import 'card_checkout_sheet.dart';
 
 class BuyOnetimeScreen extends ConsumerStatefulWidget {
   const BuyOnetimeScreen({super.key});
@@ -23,66 +24,42 @@ class BuyOnetimeScreen extends ConsumerStatefulWidget {
 }
 
 class _BuyOnetimeScreenState extends ConsumerState<BuyOnetimeScreen> {
-  bool _isGramMode = false;
   double _amount = 0;
-  final _amountCtrl = TextEditingController();
+  String? _selectedPill;
   bool _loading = false;
 
-  static const _sekSuggestions = [100.0, 250.0, 500.0, 1000.0, 2500.0, 5000.0];
-  static const _gramSuggestions = [0.1, 0.25, 0.5, 1.0, 2.5, 5.0];
+  static const _sekPills = ['100 kr', '500 kr', '1 000 kr', '5 000 kr'];
+  static const _sekValues = [100.0, 500.0, 1000.0, 5000.0];
 
-  @override
-  void dispose() {
-    _amountCtrl.dispose();
-    super.dispose();
-  }
-
-  double _amountSek(double pricePerGram) =>
-      _isGramMode ? _amount * pricePerGram : _amount;
-
+  double _amountSek() => _amount;
   double _amountGrams(double pricePerGram) =>
-      _isGramMode ? _amount : (pricePerGram > 0 ? _amount / pricePerGram : 0);
+      pricePerGram > 0 ? _amount / pricePerGram : 0.0;
 
-  void _selectSuggestion(double value) {
+  void _selectPill(String label, double value) {
     HapticFeedback.lightImpact();
     setState(() {
       _amount = value;
-      _amountCtrl.text = _isGramMode
-          ? value.toString().replaceAll(RegExp(r'\.?0+$'), '')
-          : value.toInt().toString();
+      _selectedPill = label;
     });
-  }
-
-  void _onAmountChanged(String raw) {
-    final cleaned = raw.replaceAll(',', '').replaceAll(' ', '');
-    setState(() => _amount = double.tryParse(cleaned) ?? 0);
   }
 
   Future<void> _onContinue(double pricePerGram) async {
     final paymentMethod = ref.read(selectedPaymentMethodProvider);
-    final amtSek = _amountSek(pricePerGram);
+    final amtSek = _amountSek();
     final amtGrams = _amountGrams(pricePerGram);
 
     if (paymentMethod == 'card') {
       if (kIsWeb) {
-        // Web: redirect to Stripe Checkout (flutter_stripe crashes on web)
         setState(() => _loading = true);
         try {
           await _webStripeRedirect(amtSek, amtGrams, pricePerGram, 'Buy Gold');
         } catch (e) {
-          if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-              content: Text(e.toString().replaceFirst('Exception: ', '')),
-              backgroundColor: AppConstants.error,
-            ));
-          }
+          if (mounted) AppSnackbar.error(context, e);
         } finally {
           if (mounted) setState(() => _loading = false);
         }
         return;
       }
-
-      // Mobile: show checkout sheet
       final paid = await showCardCheckout(
         context,
         amountSek: amtSek,
@@ -111,33 +88,20 @@ class _BuyOnetimeScreenState extends ConsumerState<BuyOnetimeScreen> {
         });
       }
     } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(e.toString().replaceFirst('Exception: ', '')),
-            backgroundColor: AppConstants.error,
-            duration: const Duration(seconds: 3),
-          ),
-        );
-      }
+      if (mounted) AppSnackbar.error(context, e);
     } finally {
       if (mounted) setState(() => _loading = false);
     }
   }
 
   Future<void> _webStripeRedirect(
-    double amtSek,
-    double amtGrams,
-    double price,
-    String type,
-  ) async {
+      double amtSek, double amtGrams, double price, String type) async {
     final supabase = ref.read(supabaseProvider);
     final origin = webOrigin;
     final encodedType = Uri.encodeComponent(type);
     final successUrl =
         '$origin/#/receipt?type=$encodedType&amount=$amtSek&grams=$amtGrams&price=$price&paymentMethod=card&success=true';
     final cancelUrl = '$origin/#/buy/onetime';
-
     final response = await supabase.functions.invoke(
       'create-payment-intent',
       body: {
@@ -149,11 +113,10 @@ class _BuyOnetimeScreenState extends ConsumerState<BuyOnetimeScreen> {
         'cancelUrl': cancelUrl,
       },
     );
-
     final checkoutUrl = response.data?['checkoutUrl'] as String?;
     if (checkoutUrl == null) {
-      final err = response.data?['error'] as String?;
-      throw Exception(err ?? 'Payment service unavailable');
+      throw Exception(
+          response.data?['error'] ?? 'Betalningstjänsten ej tillgänglig');
     }
     redirectToUrl(checkoutUrl);
   }
@@ -161,8 +124,7 @@ class _BuyOnetimeScreenState extends ConsumerState<BuyOnetimeScreen> {
   @override
   Widget build(BuildContext context) {
     final goldAsync = ref.watch(goldPriceProvider);
-    final pricePerGram = goldAsync.value?.pricePerGramSek ?? 0;
-    final amtSek = _amountSek(pricePerGram);
+    final pricePerGram = goldAsync.value?.pricePerGramSek ?? 0.0;
     final amtGrams = _amountGrams(pricePerGram);
     final canContinue = _amount > 0 && !_loading && pricePerGram > 0;
 
@@ -171,39 +133,42 @@ class _BuyOnetimeScreenState extends ConsumerState<BuyOnetimeScreen> {
       body: SafeArea(
         child: Column(
           children: [
-            const SizedBox(height: 16),
-            const BackHeader(title: 'Buy gold'),
-            const SizedBox(height: 24),
+            const BackHeader(title: 'Köp guld'),
             Expanded(
               child: SingleChildScrollView(
-                padding: const EdgeInsets.symmetric(horizontal: 20),
+                padding: const EdgeInsets.symmetric(
+                    horizontal: AppConstants.screenPadding),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text(
-                      'Amount',
-                      style: TextStyle(
-                        fontSize: 17,
-                        fontWeight: FontWeight.w700,
-                        color: AppConstants.black,
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    GoldCard(
-                        child: _buildAmountContent(
-                            goldAsync, pricePerGram, amtSek, amtGrams)),
-                    const SizedBox(height: 24),
+                    const SizedBox(height: 16),
+                    const SectionLabel('VÄLJ BELOPP'),
+                    _buildAmountCard(pricePerGram, amtGrams),
+                    const SizedBox(height: 32),
                   ],
                 ),
               ),
             ),
             Padding(
-              padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
-              child: GoldButton(
-                label: 'Continue',
-                loading: _loading,
-                onPressed:
-                    canContinue ? () => _onContinue(pricePerGram) : null,
+              padding: const EdgeInsets.fromLTRB(
+                  AppConstants.screenPadding, 0, AppConstants.screenPadding, 8),
+              child: Column(
+                children: [
+                  GoldButton(
+                    label: 'FORTSÄTT',
+                    loading: _loading,
+                    onPressed: canContinue ? () => _onContinue(pricePerGram) : null,
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Säker betalning med Swish eller Bankgiro',
+                    style: GoogleFonts.inter(
+                      fontSize: 11,
+                      color: AppConstants.subtitle,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                ],
               ),
             ),
           ],
@@ -212,228 +177,147 @@ class _BuyOnetimeScreenState extends ConsumerState<BuyOnetimeScreen> {
     );
   }
 
-  Widget _buildAmountContent(AsyncValue<GoldPrice> goldAsync,
-      double pricePerGram, double amtSek, double amtGrams) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 14, 16, 20),
+  Widget _buildAmountCard(double pricePerGram, double amtGrams) {
+    return Container(
+      width: double.infinity,
+      decoration: BoxDecoration(
+        color: AppConstants.card,
+        borderRadius: BorderRadius.circular(AppConstants.cardRadius),
+        border: Border.all(color: AppConstants.divider, width: 1),
+      ),
+      padding: const EdgeInsets.all(24),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Header: Gold label + live price + icon
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text('Gold',
-                      style: TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w600,
-                          color: AppConstants.black)),
-                  const SizedBox(height: 3),
-                  Row(children: [
-                    goldAsync.when(
-                      data: (g) => Text(
-                        'kr.${NumberFormat('#,###.##').format(g.pricePerGramSek)}/g',
-                        style: const TextStyle(
-                            fontSize: 12, color: AppConstants.subtitle),
-                      ),
-                      loading: () => const Text('Loading...',
-                          style: TextStyle(
-                              fontSize: 12, color: AppConstants.subtitle)),
-                      error: (_, __) => const Text('—',
-                          style: TextStyle(
-                              fontSize: 12, color: AppConstants.subtitle)),
-                    ),
-                    const SizedBox(width: 6),
-                    const LiveBadge(),
-                  ]),
-                ],
-              ),
-              Container(
-                width: 38,
-                height: 38,
-                decoration: BoxDecoration(
-                  color: AppConstants.gold.withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: const Icon(Icons.layers_rounded,
-                    color: AppConstants.gold, size: 20),
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
-
-          // SEK / Grams mode toggle
-          _buildModeToggle(),
-          const SizedBox(height: 16),
-
-          // Freeform amount input
-          _buildAmountInput(),
-          const SizedBox(height: 8),
-
-          // Conversion hint
-          if (_amount > 0 && pricePerGram > 0)
-            Center(
-              child: Text(
-                _isGramMode
-                    ? '≈ kr.${NumberFormat('#,###.##').format(amtSek)}'
-                    : '≈ ${amtGrams.toStringAsFixed(4)}g',
-                style: const TextStyle(
-                    fontSize: 13, color: AppConstants.subtitle),
+          GestureDetector(
+            onTap: () => _showAmountSheet(context),
+            child: Text(
+              _amount > 0
+                  ? '${NumberFormat('#,##0', 'sv_SE').format(_amount.toInt()).replaceAll(',', ' ')} kr'
+                  : '0 kr',
+              style: GoogleFonts.playfairDisplay(
+                fontSize: 48,
+                fontStyle: FontStyle.italic,
+                color: AppConstants.black,
+                height: 1.0,
               ),
             ),
-          const SizedBox(height: 16),
-
-          const Text('Quick suggestion',
-              style: TextStyle(fontSize: 13, color: AppConstants.subtitle)),
-          const SizedBox(height: 10),
-          _buildSuggestionChips(),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            '≈ ${amtGrams.toStringAsFixed(4).replaceAll('.', ',')} g guld',
+            style: GoogleFonts.inter(
+              fontSize: 13,
+              color: AppConstants.subtitle,
+            ),
+          ),
+          const SizedBox(height: 20),
+          SuggestionPills(
+            labels: _sekPills,
+            selected: _selectedPill,
+            onTap: (label) {
+              final idx = _sekPills.indexOf(label);
+              if (idx >= 0) _selectPill(label, _sekValues[idx]);
+            },
+            pillContext: PillContext.gold,
+          ),
         ],
       ),
     );
   }
 
-  Widget _buildModeToggle() {
+  void _showAmountSheet(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => _AmountInputSheet(
+        initial: _amount,
+        onConfirm: (v) => setState(() {
+          _amount = v;
+          _selectedPill = null;
+        }),
+      ),
+    );
+  }
+}
+
+class _AmountInputSheet extends StatefulWidget {
+  final double initial;
+  final ValueChanged<double> onConfirm;
+  const _AmountInputSheet({required this.initial, required this.onConfirm});
+
+  @override
+  State<_AmountInputSheet> createState() => _AmountInputSheetState();
+}
+
+class _AmountInputSheetState extends State<_AmountInputSheet> {
+  late final TextEditingController _ctrl;
+
+  @override
+  void initState() {
+    super.initState();
+    _ctrl = TextEditingController(
+      text: widget.initial > 0 ? widget.initial.toInt().toString() : '',
+    );
+  }
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
     return Container(
-      decoration: BoxDecoration(
-        color: const Color(0xFFF0F0F0),
-        borderRadius: BorderRadius.circular(10),
+      padding: EdgeInsets.only(
+        bottom: MediaQuery.of(context).viewInsets.bottom + 24,
+        left: 20,
+        right: 20,
+        top: 20,
       ),
-      padding: const EdgeInsets.all(3),
-      child: Row(children: [
-        _modeTab('SEK', !_isGramMode),
-        _modeTab('Grams', _isGramMode),
-      ]),
-    );
-  }
-
-  Widget _modeTab(String label, bool selected) {
-    return Expanded(
-      child: GestureDetector(
-        onTap: () {
-          HapticFeedback.selectionClick();
-          setState(() {
-            _isGramMode = label == 'Grams';
-            _amount = 0;
-            _amountCtrl.clear();
-          });
-        },
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 180),
-          padding: const EdgeInsets.symmetric(vertical: 7),
-          decoration: BoxDecoration(
-            color: selected ? Colors.white : Colors.transparent,
-            borderRadius: BorderRadius.circular(8),
-            boxShadow: selected
-                ? [
-                    BoxShadow(
-                        color: Colors.black.withValues(alpha: 0.08),
-                        blurRadius: 4,
-                        offset: const Offset(0, 1))
-                  ]
-                : [],
-          ),
-          alignment: Alignment.center,
-          child: Text(
-            label,
-            style: TextStyle(
-              fontSize: 13,
-              fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
-              color:
-                  selected ? AppConstants.black : AppConstants.subtitle,
+      decoration: const BoxDecoration(
+        color: AppConstants.card,
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          TextField(
+            controller: _ctrl,
+            autofocus: true,
+            keyboardType: TextInputType.number,
+            inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+            textAlign: TextAlign.center,
+            style: GoogleFonts.playfairDisplay(
+              fontSize: 36,
+              fontStyle: FontStyle.italic,
+              color: AppConstants.black,
             ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildAmountInput() {
-    return TextField(
-      controller: _amountCtrl,
-      keyboardType: const TextInputType.numberWithOptions(decimal: true),
-      inputFormatters: [
-        FilteringTextInputFormatter.allow(RegExp(r'[\d.]')),
-      ],
-      onChanged: _onAmountChanged,
-      style: const TextStyle(
-        fontSize: 32,
-        fontWeight: FontWeight.w300,
-        color: AppConstants.black,
-        letterSpacing: -1,
-      ),
-      textAlign: TextAlign.center,
-      decoration: InputDecoration(
-        hintText: _isGramMode ? '0.00' : '0',
-        hintStyle: const TextStyle(
-          fontSize: 32,
-          fontWeight: FontWeight.w300,
-          color: AppConstants.divider,
-          letterSpacing: -1,
-        ),
-        prefixText: _isGramMode ? '' : 'kr.',
-        prefixStyle: const TextStyle(
-            fontSize: 32,
-            fontWeight: FontWeight.w300,
-            color: AppConstants.subtitle,
-            letterSpacing: -1),
-        suffixText: _isGramMode ? ' g' : '',
-        suffixStyle: const TextStyle(
-            fontSize: 20,
-            fontWeight: FontWeight.w300,
-            color: AppConstants.subtitle),
-        border: InputBorder.none,
-        enabledBorder: InputBorder.none,
-        focusedBorder: InputBorder.none,
-        counterText: '',
-      ),
-    );
-  }
-
-  Widget _buildSuggestionChips() {
-    final suggestions =
-        _isGramMode ? _gramSuggestions : _sekSuggestions;
-    return Wrap(
-      spacing: 8,
-      runSpacing: 8,
-      children: suggestions.map((val) {
-        final selected = _amount == val;
-        final label = _isGramMode
-            ? '${val}g'.replaceAll(RegExp(r'\.?0+g$'), 'g')
-            : 'kr.${NumberFormat('#,###').format(val.toInt())}';
-        return GestureDetector(
-          onTap: () => _selectSuggestion(val),
-          child: AnimatedContainer(
-            duration: const Duration(milliseconds: 180),
-            padding:
-                const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-            decoration: BoxDecoration(
-              color: selected
-                  ? AppConstants.gold.withValues(alpha: 0.12)
-                  : Colors.transparent,
-              borderRadius: BorderRadius.circular(20),
-              border: Border.all(
-                color: selected
-                    ? AppConstants.gold
-                    : const Color(0xFFDDDDDD),
-                width: selected ? 1.5 : 1,
-              ),
-            ),
-            child: Text(
-              label,
-              style: TextStyle(
-                fontSize: 13,
-                fontWeight:
-                    selected ? FontWeight.w600 : FontWeight.w400,
-                color:
-                    selected ? AppConstants.gold : AppConstants.black,
+            decoration: InputDecoration(
+              hintText: '0',
+              suffixText: 'kr',
+              border: InputBorder.none,
+              enabledBorder: InputBorder.none,
+              focusedBorder: InputBorder.none,
+              hintStyle: GoogleFonts.playfairDisplay(
+                fontSize: 36,
+                fontStyle: FontStyle.italic,
+                color: AppConstants.divider,
               ),
             ),
           ),
-        );
-      }).toList(),
+          const SizedBox(height: 16),
+          GoldButton(
+            label: 'BEKRÄFTA',
+            onPressed: () {
+              final v = double.tryParse(_ctrl.text) ?? 0;
+              widget.onConfirm(v);
+              Navigator.pop(context);
+            },
+          ),
+        ],
+      ),
     );
   }
 }

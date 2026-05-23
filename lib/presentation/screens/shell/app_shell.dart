@@ -13,26 +13,21 @@ class AppShell extends ConsumerWidget {
     if (location.startsWith(Routes.wallet)) return 2;
     if (location.startsWith(Routes.portfolio)) return 3;
     if (location.startsWith(Routes.more)) return 4;
-    return 0; // home
+    return 0;
   }
 
   void _onTap(BuildContext context, int index) {
     switch (index) {
       case 0:
         context.go(Routes.home);
-        break;
       case 1:
         context.push(Routes.buy);
-        break; // Buy is outside shell
       case 2:
         context.go(Routes.wallet);
-        break;
       case 3:
         context.go(Routes.portfolio);
-        break;
       case 4:
         context.go(Routes.more);
-        break;
     }
   }
 
@@ -63,64 +58,59 @@ class _GuldlyBottomNav extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final items = [
-      const _NavItem(icon: Icons.home_rounded, label: 'Home'),
-      const _NavItem(icon: Icons.shopping_bag_outlined, label: 'Buy'),
-      const _NavItem(
-          icon: Icons.account_balance_wallet_outlined, label: 'Wallet'),
-      const _NavItem(icon: Icons.pie_chart_outline_rounded, label: 'Portfolio'),
-      const _NavItem(icon: Icons.menu_rounded, label: 'More'),
+    const items = [
+      _NavItem(icon: Icons.home_rounded, label: 'HEM'),
+      _NavItem(icon: Icons.shopping_bag_outlined, label: 'KÖP'),
+      _NavItem(icon: Icons.account_balance_wallet_outlined, label: 'PLÅNBOK'),
+      _NavItem(icon: Icons.pie_chart_outline_rounded, label: 'PORTFÖLJ'),
+      _NavItem(icon: Icons.menu_rounded, label: 'MER'),
     ];
 
     return Container(
-      decoration: BoxDecoration(
+      decoration: const BoxDecoration(
         color: AppConstants.card,
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.07),
-            blurRadius: 16,
-            offset: const Offset(0, -4),
-          ),
-        ],
+        border: Border(
+          top: BorderSide(color: AppConstants.divider, width: 1),
+        ),
       ),
-      padding: const EdgeInsets.symmetric(vertical: 8),
       child: SafeArea(
         top: false,
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceAround,
-          children: items.asMap().entries.map((e) {
-            final selected = e.key == currentIndex;
-            return GestureDetector(
-              onTap: () => onTap(e.key),
-              behavior: HitTestBehavior.opaque,
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 8),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(
-                      e.value.icon,
-                      color:
-                          selected ? AppConstants.gold : AppConstants.subtitle,
-                      size: 24,
-                    ),
-                    const SizedBox(height: 3),
-                    Text(
-                      e.value.label,
-                      style: TextStyle(
-                        color: selected
-                            ? AppConstants.gold
-                            : AppConstants.subtitle,
-                        fontSize: 11,
-                        fontWeight:
-                            selected ? FontWeight.w600 : FontWeight.w400,
+        child: SizedBox(
+          height: 60,
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceAround,
+            children: items.asMap().entries.map((e) {
+              final selected = e.key == currentIndex;
+              return GestureDetector(
+                onTap: () => onTap(e.key),
+                behavior: HitTestBehavior.opaque,
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 8),
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(
+                        e.value.icon,
+                        color: selected ? AppConstants.gold : AppConstants.subtitle,
+                        size: 22,
                       ),
-                    ),
-                  ],
+                      const SizedBox(height: 3),
+                      Text(
+                        e.value.label,
+                        style: TextStyle(
+                          fontFamily: 'Inter',
+                          color: selected ? AppConstants.gold : AppConstants.subtitle,
+                          fontSize: 10,
+                          fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
+                          letterSpacing: 0.3,
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
-              ),
-            );
-          }).toList(),
+              );
+            }).toList(),
+          ),
         ),
       ),
     );

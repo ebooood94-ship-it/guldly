@@ -1,11 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:google_fonts/google_fonts.dart';
 import '../../../core/constants/app_constants.dart';
-import '../../../core/router/router.dart';
 import '../../../core/providers/providers.dart';
+import '../../../core/router/router.dart';
+import '../../../core/utils/error_utils.dart';
 import '../../widgets/common/gold_button.dart';
 import '../../widgets/common/gold_text_field.dart';
+import '../../widgets/gold/gold_logo.dart';
 
 class RegisterScreen extends ConsumerStatefulWidget {
   const RegisterScreen({super.key});
@@ -21,6 +24,14 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
   bool _loading = false;
   String? _error;
 
+  @override
+  void dispose() {
+    _nameCtrl.dispose();
+    _emailCtrl.dispose();
+    _passwordCtrl.dispose();
+    super.dispose();
+  }
+
   Future<void> _signUp() async {
     setState(() {
       _loading = true;
@@ -33,7 +44,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
             fullName: _nameCtrl.text.trim(),
           );
     } catch (e) {
-      setState(() => _error = e.toString());
+      setState(() => _error = friendlyError(e));
     } finally {
       if (mounted) setState(() => _loading = false);
     }
@@ -56,58 +67,72 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                     color: AppConstants.black, size: 22),
               ),
               const SizedBox(height: 32),
-              const Text('Create account',
-                  style: TextStyle(
-                      fontSize: 24,
-                      fontWeight: FontWeight.w700,
-                      color: AppConstants.black)),
+              const Center(child: GoldLogo(size: LogoSize.medium)),
+              const SizedBox(height: 32),
+              Text(
+                'Skapa konto',
+                style: GoogleFonts.playfairDisplay(
+                  fontSize: 26,
+                  fontStyle: FontStyle.italic,
+                  color: AppConstants.black,
+                ),
+              ),
               const SizedBox(height: 4),
-              const Text('Start investing in gold today',
-                  style: TextStyle(fontSize: 14, color: AppConstants.subtitle)),
+              Text(
+                'Börja spara i guld idag.',
+                style: GoogleFonts.inter(
+                    fontSize: 14, color: AppConstants.subtitle),
+              ),
               const SizedBox(height: 32),
               GoldTextField(
-                  label: 'Full Name',
-                  hint: 'Your full name',
-                  controller: _nameCtrl),
+                label: 'FULLSTÄNDIGT NAMN',
+                hint: 'Ditt namn',
+                controller: _nameCtrl,
+              ),
               const SizedBox(height: 16),
               GoldTextField(
-                  label: 'Email',
-                  hint: 'your@email.com',
-                  controller: _emailCtrl,
-                  keyboardType: TextInputType.emailAddress),
+                label: 'E-POST',
+                hint: 'din@email.se',
+                controller: _emailCtrl,
+                keyboardType: TextInputType.emailAddress,
+              ),
               const SizedBox(height: 16),
               GoldTextField(
-                  label: 'Password',
-                  hint: '••••••••',
-                  controller: _passwordCtrl,
-                  obscure: true),
+                label: 'LÖSENORD',
+                hint: '••••••••',
+                controller: _passwordCtrl,
+                obscure: true,
+              ),
               if (_error != null) ...[
                 const SizedBox(height: 12),
                 Text(_error!,
-                    style: const TextStyle(
+                    style: GoogleFonts.inter(
                         color: AppConstants.error, fontSize: 13)),
               ],
               const SizedBox(height: 28),
               GoldButton(
-                  label: 'Create account',
-                  onPressed: _signUp,
-                  loading: _loading),
+                label: 'SKAPA KONTO',
+                onPressed: _signUp,
+                loading: _loading,
+              ),
               const SizedBox(height: 20),
               Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  const Text('Already have an account? ',
-                      style: TextStyle(color: AppConstants.subtitle)),
+                  Text('Har du redan ett konto? ',
+                      style: GoogleFonts.inter(
+                          color: AppConstants.subtitle, fontSize: 13)),
                   GestureDetector(
                     onTap: () => context.go(Routes.login),
-                    child: const Text('Sign in',
-                        style: TextStyle(
+                    child: Text('Logga in',
+                        style: GoogleFonts.inter(
                             color: AppConstants.gold,
-                            fontWeight: FontWeight.w600)),
+                            fontWeight: FontWeight.w600,
+                            fontSize: 13)),
                   ),
                 ],
               ),
-              const SizedBox(height: 32),
+              const SizedBox(height: 40),
             ],
           ),
         ),

@@ -1,7 +1,5 @@
 import 'dart:async';
-import 'dart:convert';
 import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -52,34 +50,27 @@ final goldPriceProvider = FutureProvider<GoldPrice>((ref) async {
     ref.invalidateSelf();
   });
   ref.onDispose(timer.cancel);
-  // Step 1: Get XAU/USD from GoldAPI
-  final goldRes = await http.get(
-    Uri.parse('https://www.goldapi.io/api/XAU/USD'),
-    headers: {'x-access-token': 'goldapi-80rqlsmo6ribne-io'},
-  );
 
-  if (goldRes.statusCode != 200) throw Exception('GoldAPI error');
-  final goldData = jsonDecode(goldRes.body) as Map<String, dynamic>;
-  final priceUsd = (goldData['price'] as num).toDouble();
+  // Call the server-side edge function to avoid CORS issues on web
+  final supabase = ref.read(supabaseProvider);
+  final response = await supabase.functions.invoke('get-gold-price');
 
-  // Step 2: Get USD→SEK from MetalPriceAPI
-  final fxRes = await http.get(
-    Uri.parse(
-      'https://api.metalpriceapi.com/v1/latest'
-      '?api_key=315ccf20017e1e6d34635327d8670683'
-      '&base=SEK&currencies=USD',
-    ),
-  );
+  if (response.data == null) {
+    throw Exception('Gold price service unavailable');
+  }
 
-  if (fxRes.statusCode != 200) throw Exception('MetalPriceAPI error');
-  final fxData = jsonDecode(fxRes.body) as Map<String, dynamic>;
+  final data = response.data as Map<String, dynamic>;
 
-  // rates.SEKUSD = how many SEK per 1 USD
-  final sekPerUsd = (fxData['rates']['SEKUSD'] as num).toDouble();
+  if (data['error'] != null) {
+    throw Exception('Gold price error: ${data['error']}');
+  }
+
+  final pricePerOzUsd = (data['pricePerOzUsd'] as num).toDouble();
+  final usdToSek = (data['usdToSek'] as num).toDouble();
 
   final price = GoldPrice(
-    pricePerOzUsd: priceUsd,
-    usdToSek: sekPerUsd,
+    pricePerOzUsd: pricePerOzUsd,
+    usdToSek: usdToSek,
     timestamp: DateTime.now(),
   );
 
@@ -112,16 +103,19 @@ final firstLoginSetupProvider = FutureProvider<void>((ref) async {
   final user = ref.watch(currentUserProvider);
   if (user == null) return;
   final supabase = ref.watch(supabaseProvider);
+  // ignoreDuplicates: true → INSERT … ON CONFLICT DO NOTHING
+  // This ensures we never overwrite existing balances, grams, or preferences
+  // when auth re-fires (e.g. after a Stripe redirect cold-start).
   await Future.wait([
     supabase.from('profiles').upsert({
       'id': user.id,
       'full_name': user.userMetadata?['full_name'] ?? '',
-    }, onConflict: 'id'),
+    }, onConflict: 'id', ignoreDuplicates: true),
     supabase.from('wallets').upsert({
       'user_id': user.id,
       'balance_sek': 0.0,
       'gold_grams': 0.0,
-    }, onConflict: 'user_id'),
+    }, onConflict: 'user_id', ignoreDuplicates: true),
     supabase.from('notification_preferences').upsert({
       'user_id': user.id,
       'push_price_alerts': true,
@@ -133,7 +127,7 @@ final firstLoginSetupProvider = FutureProvider<void>((ref) async {
       'email_product_updates': false,
       'sms_enabled': false,
       'sms_transaction_updates': false,
-    }, onConflict: 'user_id'),
+    }, onConflict: 'user_id', ignoreDuplicates: true),
   ]);
 });
 
@@ -333,6 +327,24 @@ class GoldTransactionService {
         .from('subscriptions')
         .update({'is_active': false})
         .eq('id', subscriptionId);
+    _ref.invalidate(subscriptionsProvider);
+  }
+
+  Future<void> updateSubscription({
+    required String subscriptionId,
+    required double amountSek,
+    required String frequency,
+    required List<String> selectedDays,
+    required DateTime nextPaymentDate,
+  }) async {
+    final dbFreq = frequency.toLowerCase();
+    await _supabase.from('subscriptions').update({
+      'amount_sek': amountSek,
+      'frequency': dbFreq,
+      'days_of_week': dbFreq == 'weekly' ? selectedDays : null,
+      'day_of_month': dbFreq == 'monthly' ? 1 : null,
+      'next_payment_date': nextPaymentDate.toIso8601String(),
+    }).eq('id', subscriptionId);
     _ref.invalidate(subscriptionsProvider);
   }
 

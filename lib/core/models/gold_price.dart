@@ -26,6 +26,12 @@ class GoldPrice {
     );
   }
 
+  // Convenience getters used throughout the UI
+  double get pricePerGramSek => marketPricePerGram;
+  double get pricePerOzSek => marketPricePerGram * 31.1035;
+  double get buyPricePerGramSek => buyPricePerGram;
+  double get sellPricePerGramSek => sellPricePerGram;
+
   Map<String, dynamic> toJson() => {
         'market_price': marketPricePerGram,
         'buy_price': buyPricePerGram,
