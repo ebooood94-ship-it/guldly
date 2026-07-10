@@ -16,10 +16,12 @@ class StripeService {
     // Ensure key is set — needed on web where eager init may have been skipped
     Stripe.publishableKey = _publishableKey;
 
-    // 1. Create PaymentIntent server-side
+    // 1. Create PaymentIntent server-side. StripeService.pay is only used
+    // for adding funds; the stripe-webhook function credits the wallet from
+    // this metadata once Stripe confirms the payment.
     final response = await supabase.functions.invoke(
       'create-payment-intent',
-      body: {'amount': amountSek, 'currency': 'sek'},
+      body: {'amount': amountSek, 'currency': 'sek', 'purpose': 'add_funds'},
     );
 
     if (response.data == null || response.data['clientSecret'] == null) {

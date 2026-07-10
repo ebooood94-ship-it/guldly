@@ -68,6 +68,18 @@ class _BuyOnetimeScreenState extends ConsumerState<BuyOnetimeScreen> {
         supabase: ref.read(supabaseProvider),
       );
       if (!paid || !mounted) return;
+      // Gold is credited server-side by the stripe-webhook function once
+      // Stripe confirms the payment — the client no longer calls rpc_buy_gold
+      // for card purchases. The receipt screen refreshes the wallet shortly.
+      context.go(Routes.receipt, extra: {
+        'type': 'Buy Gold',
+        'amountSek': amtSek,
+        'goldGrams': amtGrams,
+        'goldPricePerGramSek': pricePerGram,
+        'paymentMethod': 'card',
+        'fromStripeRedirect': true,
+      });
+      return;
     }
 
     setState(() => _loading = true);
@@ -108,7 +120,9 @@ class _BuyOnetimeScreenState extends ConsumerState<BuyOnetimeScreen> {
         'mode': 'web_checkout',
         'amount': amtSek,
         'currency': 'sek',
+        'purpose': 'buy_gold',
         'goldGrams': amtGrams,
+        'pricePerGram': price,
         'successUrl': successUrl,
         'cancelUrl': cancelUrl,
       },

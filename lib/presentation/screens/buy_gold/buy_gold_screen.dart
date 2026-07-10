@@ -223,19 +223,11 @@ class _BuyGoldScreenState extends ConsumerState<BuyGoldScreen> {
             value: 'card',
             groupValue: _paymentMethod,
             onChanged: (v) => setState(() => _paymentMethod = v),
-            showDivider: true,
-          ),
-          _RadioRow(
-            icon: Icons.account_balance_rounded,
-            iconBg: AppConstants.deliveryIconBg,
-            iconColor: AppConstants.navy,
-            title: 'Direktöverföring',
-            subtitle: 'BankID signering',
-            value: 'bank',
-            groupValue: _paymentMethod,
-            onChanged: (v) => setState(() => _paymentMethod = v),
             showDivider: false,
           ),
+          // 'bank' (Direktöverföring) removed: rpc_buy_gold credits gold_grams
+          // without any payment verification for non-wallet methods. Re-add
+          // only together with a real pending/confirm flow.
         ],
       ),
     );

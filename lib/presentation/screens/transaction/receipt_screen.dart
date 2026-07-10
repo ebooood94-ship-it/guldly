@@ -6,7 +6,6 @@ import 'package:intl/intl.dart';
 import '../../../core/constants/app_constants.dart';
 import '../../../core/providers/providers.dart';
 import '../../../core/router/router.dart';
-import '../../widgets/common/app_snackbar.dart';
 import '../../widgets/common/gold_button.dart';
 
 class ReceiptScreen extends ConsumerStatefulWidget {
@@ -18,67 +17,36 @@ class ReceiptScreen extends ConsumerStatefulWidget {
 }
 
 class _ReceiptScreenState extends ConsumerState<ReceiptScreen> {
-  bool _recording = false;
+  bool _syncing = false;
 
   @override
   void initState() {
     super.initState();
     if (widget.data['fromStripeRedirect'] == true) {
       WidgetsBinding.instance
-          .addPostFrameCallback((_) => _waitForAuthThenRecord());
+          .addPostFrameCallback((_) => _syncAfterStripePayment());
     }
   }
 
-  Future<void> _waitForAuthThenRecord() async {
+  // Card payments are credited server-side by the stripe-webhook edge
+  // function — the client records nothing (previously this screen credited
+  // straight from URL parameters, which anyone could forge). Wait for the
+  // session to restore after the redirect, give the webhook a moment to
+  // land, then refresh the wallet.
+  Future<void> _syncAfterStripePayment() async {
     if (!mounted) return;
-    setState(() => _recording = true);
+    setState(() => _syncing = true);
     final supabase = ref.read(supabaseProvider);
     for (var i = 0; i < 20; i++) {
       if (!mounted) return;
-      if (supabase.auth.currentSession != null) {
-        await _recordTransaction();
-        return;
-      }
+      if (supabase.auth.currentSession != null) break;
       await Future.delayed(const Duration(milliseconds: 300));
     }
-    if (mounted) setState(() => _recording = false);
-  }
-
-  Future<void> _recordTransaction() async {
-    try {
-      final amtSek = (widget.data['amountSek'] as num?)?.toDouble() ?? 0;
-      final grams = (widget.data['goldGrams'] as num?)?.toDouble() ?? 0;
-      final price =
-          (widget.data['goldPricePerGramSek'] as num?)?.toDouble() ?? 0;
-      final isAddFunds =
-          widget.data['addFunds'] == true || widget.data['addFunds'] == 'true';
-
-      final svc = ref.read(goldTransactionServiceProvider);
-
-      if (isAddFunds) {
-        await svc.addFunds(amountSek: amtSek, paymentMethod: 'card');
-      } else {
-        await svc.buyGoldOnetime(
-          amountSek: amtSek,
-          goldGrams: grams,
-          goldPricePerGramSek: price,
-          paymentMethod: 'card',
-        );
-      }
-
-      if (mounted) {
-        ref.invalidate(walletProvider);
-        ref.invalidate(transactionsProvider);
-      }
-    } catch (e, st) {
-      debugPrint('Receipt: failed to record transaction: $e\n$st');
-      if (mounted) {
-        AppSnackbar.error(context, e,
-            duration: const Duration(seconds: 6));
-      }
-    } finally {
-      if (mounted) setState(() => _recording = false);
-    }
+    await Future.delayed(const Duration(seconds: 2));
+    if (!mounted) return;
+    ref.invalidate(walletProvider);
+    ref.invalidate(transactionsProvider);
+    setState(() => _syncing = false);
   }
 
   @override
@@ -93,8 +61,9 @@ class _ReceiptScreenState extends ConsumerState<ReceiptScreen> {
     final paymentMethod = widget.data['paymentMethod'] as String?;
     final frequency = widget.data['frequency'] as String?;
     final fromStripe = widget.data['fromStripeRedirect'] == true;
+    final giftPending = widget.data['giftStatus'] == 'pending';
 
-    if (fromStripe && _recording) {
+    if (fromStripe && _syncing) {
       return Scaffold(
         backgroundColor: AppConstants.background,
         body: Center(
@@ -148,7 +117,9 @@ class _ReceiptScreenState extends ConsumerState<ReceiptScreen> {
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      'Transaktion bekräftad',
+                      giftPending
+                          ? 'Gåvan väntar på mottagaren'
+                          : 'Transaktion bekräftad',
                       style: GoogleFonts.inter(
                           fontSize: 14, color: AppConstants.subtitle),
                     ),
@@ -218,6 +189,39 @@ class _ReceiptScreenState extends ConsumerState<ReceiptScreen> {
                         ),
                       ],
                     ),
+                    if (giftPending) ...[
+                      const SizedBox(height: 16),
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.all(14),
+                        decoration: BoxDecoration(
+                          color: AppConstants.giftIconBg,
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                              color: AppConstants.violet
+                                  .withValues(alpha: 0.25)),
+                        ),
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Icon(Icons.schedule_rounded,
+                                color: AppConstants.violet, size: 18),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: Text(
+                                '${recipientName ?? 'Mottagaren'} är inte Guldly-användare ännu. '
+                                'Guldet levereras automatiskt när hen registrerar sig med denna e-postadress.',
+                                style: GoogleFonts.inter(
+                                  fontSize: 12,
+                                  height: 1.4,
+                                  color: AppConstants.black,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
                     const SizedBox(height: 40),
                   ],
                 ),

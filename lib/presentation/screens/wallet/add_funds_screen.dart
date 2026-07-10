@@ -34,28 +34,24 @@ class _AddFundsScreenState extends ConsumerState<AddFundsScreen> {
   Future<void> _onContinue() async {
     setState(() => _loading = true);
     try {
-      if (_paymentMethod == 'card') {
-        if (kIsWeb) {
-          await _webStripeRedirect();
-          return;
-        }
-        final paid = await StripeService.pay(
-          amountSek: _amountKr.toDouble(),
-          supabase: ref.read(supabaseProvider),
-        );
-        if (!paid || !mounted) return;
+      if (kIsWeb) {
+        await _webStripeRedirect();
+        return;
       }
-      await ref.read(goldTransactionServiceProvider).addFunds(
-            amountSek: _amountKr.toDouble(),
-            paymentMethod: _paymentMethod,
-          );
-      if (mounted) {
-        context.go(Routes.receipt, extra: {
-          'type': 'Add Funds',
-          'amountSek': _amountKr.toDouble(),
-          'paymentMethod': _paymentMethod,
-        });
-      }
+      final paid = await StripeService.pay(
+        amountSek: _amountKr.toDouble(),
+        supabase: ref.read(supabaseProvider),
+      );
+      if (!paid || !mounted) return;
+      // The wallet is credited server-side by the stripe-webhook function
+      // once Stripe confirms the payment — rpc_add_funds is no longer
+      // callable from the client. The receipt screen refreshes shortly.
+      context.go(Routes.receipt, extra: {
+        'type': 'Add Funds',
+        'amountSek': _amountKr.toDouble(),
+        'paymentMethod': 'card',
+        'fromStripeRedirect': true,
+      });
     } catch (e) {
       if (mounted) AppSnackbar.error(context, e);
     } finally {
@@ -76,6 +72,7 @@ class _AddFundsScreenState extends ConsumerState<AddFundsScreen> {
         'mode': 'web_checkout',
         'amount': _amountKr.toDouble(),
         'currency': 'sek',
+        'purpose': 'add_funds',
         'successUrl': successUrl,
         'cancelUrl': cancelUrl,
       },
@@ -217,6 +214,10 @@ class _AddFundsScreenState extends ConsumerState<AddFundsScreen> {
       ),
       child: Column(
         children: [
+          // Bank transfer is intentionally not offered: there is no
+          // verification backend for it, and rpc_add_funds credits the wallet
+          // unconditionally. Re-add only together with a real pending/confirm
+          // flow (see supabase/migrations/001, rpc_add_funds).
           _PayRow(
             icon: Icons.credit_card_rounded,
             iconBg: AppConstants.buyIconBg,
@@ -224,17 +225,6 @@ class _AddFundsScreenState extends ConsumerState<AddFundsScreen> {
             title: 'Kredit-/betalkort',
             subtitle: 'Visa, Mastercard',
             value: 'card',
-            groupValue: _paymentMethod,
-            onChanged: (v) => setState(() => _paymentMethod = v),
-            showDivider: true,
-          ),
-          _PayRow(
-            icon: Icons.account_balance_rounded,
-            iconBg: AppConstants.deliveryIconBg,
-            iconColor: AppConstants.navy,
-            title: 'Banköverföring',
-            subtitle: 'ACH, 3–5 bankdagar',
-            value: 'bank',
             groupValue: _paymentMethod,
             onChanged: (v) => setState(() => _paymentMethod = v),
             showDivider: false,

@@ -56,7 +56,15 @@ class _CardCheckoutSheetState extends State<_CardCheckoutSheet> {
   Future<String> _fetchClientSecret() async {
     final response = await widget.supabase.functions.invoke(
       'create-payment-intent',
-      body: {'amount': widget.amountSek, 'currency': 'sek'},
+      body: {
+        'amount': widget.amountSek,
+        'currency': 'sek',
+        // The webhook credits gold from this metadata once Stripe confirms
+        // the payment; the client no longer calls rpc_buy_gold for cards.
+        'purpose': 'buy_gold',
+        'goldGrams': widget.goldGrams,
+        'pricePerGram': widget.goldPricePerGramSek,
+      },
     );
     final secret = response.data?['clientSecret'] as String?;
     if (secret == null) {

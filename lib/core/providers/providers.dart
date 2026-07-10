@@ -224,10 +224,23 @@ class GoldTransactionService {
 
   GoldTransactionService(this._supabase, this._ref);
 
-  static String _paymentToDb(String method) {
+  /// Maps a UI payment-method string to its DB enum value.
+  /// Public for unit testing; not part of the app's public API otherwise.
+  @visibleForTesting
+  static String paymentToDb(String method) {
     if (method == 'card') return 'credit_card';
     if (method == 'bank') return 'bank_transfer';
     return 'wallet';
+  }
+
+  // Bank transfer has no verification backend: rpc_buy_gold and rpc_add_funds
+  // credit gold/balance unconditionally for non-wallet methods. Blocked here
+  // (in addition to the UI) until a pending/confirm flow exists.
+  static void _rejectUnverifiedMethod(String method) {
+    if (method == 'bank') {
+      throw UnsupportedError(
+          'Banköverföring stöds inte ännu: betalningen kan inte verifieras.');
+    }
   }
 
   Future<void> buyGoldOnetime({
@@ -236,12 +249,19 @@ class GoldTransactionService {
     required double goldPricePerGramSek,
     required String paymentMethod,
   }) async {
+    // Only wallet purchases are recorded directly (rpc_buy_gold enforces the
+    // same rule). Card payments are credited by the stripe-webhook edge
+    // function after Stripe confirms the payment.
+    if (paymentMethod != 'wallet') {
+      throw UnsupportedError(
+          'Endast plånboksköp kan registreras direkt; kortbetalningar krediteras efter Stripe-bekräftelse.');
+    }
     if (_ref.read(currentUserProvider) == null) throw Exception('Not authenticated');
     await _supabase.rpc('rpc_buy_gold', params: {
       'p_gold_grams': goldGrams,
       'p_amount_sek': amountSek,
       'p_price_per_gram': goldPricePerGramSek,
-      'p_payment_method': _paymentToDb(paymentMethod),
+      'p_payment_method': paymentToDb(paymentMethod),
     });
     _ref.invalidate(walletProvider);
     _ref.invalidate(transactionsProvider);
@@ -253,6 +273,7 @@ class GoldTransactionService {
     required List<String> selectedDays,
     required String paymentMethod,
   }) async {
+    _rejectUnverifiedMethod(paymentMethod);
     final user = _ref.read(currentUserProvider);
     if (user == null) throw Exception('Not authenticated');
     final dbFreq = frequency.toLowerCase();
@@ -268,7 +289,7 @@ class GoldTransactionService {
       'frequency': dbFreq,
       'days_of_week': dbFreq == 'weekly' ? selectedDays : null,
       'day_of_month': dbFreq == 'monthly' ? 1 : null,
-      'payment_method': _paymentToDb(paymentMethod),
+      'payment_method': paymentToDb(paymentMethod),
       'is_active': true,
       'next_payment_date': nextDate.toIso8601String(),
     });
@@ -288,20 +309,13 @@ class GoldTransactionService {
     _ref.invalidate(transactionsProvider);
   }
 
-  Future<void> addFunds({
-    required double amountSek,
-    required String paymentMethod,
-  }) async {
-    if (_ref.read(currentUserProvider) == null) throw Exception('Not authenticated');
-    await _supabase.rpc('rpc_add_funds', params: {
-      'p_amount_sek': amountSek,
-      'p_payment_method': _paymentToDb(paymentMethod),
-    });
-    _ref.invalidate(walletProvider);
-    _ref.invalidate(transactionsProvider);
-  }
+  // NOTE: there is intentionally no addFunds method. Adding funds is
+  // card-only and credited exclusively by the stripe-webhook edge function;
+  // rpc_add_funds is revoked from client roles (migration 003).
 
-  Future<void> sendGift({
+  /// Returns 'delivered' when the recipient already has a Guldly account,
+  /// or 'pending' when the gift is held until that email signs up.
+  Future<String> sendGift({
     required double amountSek,
     required double goldGrams,
     required String recipientName,
@@ -310,7 +324,7 @@ class GoldTransactionService {
     required bool isSEKMode,
   }) async {
     if (_ref.read(currentUserProvider) == null) throw Exception('Not authenticated');
-    await _supabase.rpc('rpc_send_gift', params: {
+    final result = await _supabase.rpc('rpc_send_gift', params: {
       'p_amount_sek': isSEKMode ? amountSek : goldGrams * goldPricePerGramSek,
       'p_gold_grams': isSEKMode ? amountSek / goldPricePerGramSek : goldGrams,
       'p_recipient_name': recipientName,
@@ -320,6 +334,7 @@ class GoldTransactionService {
     });
     _ref.invalidate(walletProvider);
     _ref.invalidate(transactionsProvider);
+    return result as String? ?? 'delivered';
   }
 
   Future<void> cancelSubscription(String subscriptionId) async {

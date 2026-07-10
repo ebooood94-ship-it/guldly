@@ -29,3 +29,8 @@ jwt_expiry = 3600
 enable_signup = true
 
 [functions]
+
+[functions.stripe-webhook]
+# Authenticated by the Stripe signature check inside the function;
+# Stripe cannot send a Supabase JWT.
+verify_jwt = false
