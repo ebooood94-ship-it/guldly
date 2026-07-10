@@ -1,0 +1,19 @@
+# Normalize line endings across all checkouts.
+# `text=auto` lets Git detect text vs binary; `eol=lf` forces LF in the
+# working tree too, so a Windows checkout (even with core.autocrlf=true)
+# no longer produces CRLF/LF churn in diffs.
+* text=auto eol=lf
+
+# Binary assets — never touch their bytes or try to diff/merge them as text.
+*.png  binary
+*.jpg  binary
+*.jpeg binary
+*.gif  binary
+*.ico  binary
+*.webp binary
+*.ttf  binary
+*.otf  binary
+*.woff binary
+*.woff2 binary
+*.jar  binary
+*.keystore binary
