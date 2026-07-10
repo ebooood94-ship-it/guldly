@@ -20,7 +20,7 @@ class _SplashScreenState extends State<SplashScreen>
   void initState() {
     super.initState();
     SystemChrome.setSystemUIOverlayStyle(const SystemUiOverlayStyle(
-      statusBarColor: Colors.transparent,
+      statusBarColor: AppConstants.transparent,
       statusBarIconBrightness: Brightness.light,
     ));
     _ctrl = AnimationController(
@@ -34,7 +34,7 @@ class _SplashScreenState extends State<SplashScreen>
   @override
   void dispose() {
     SystemChrome.setSystemUIOverlayStyle(const SystemUiOverlayStyle(
-      statusBarColor: Colors.transparent,
+      statusBarColor: AppConstants.transparent,
       statusBarIconBrightness: Brightness.dark,
     ));
     _ctrl.dispose();
@@ -44,7 +44,7 @@ class _SplashScreenState extends State<SplashScreen>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF0F0F0E),
+      backgroundColor: AppConstants.splashBackground,
       body: SafeArea(
         child: FadeTransition(
           opacity: _fade,
@@ -103,7 +103,7 @@ class _SplashScreenState extends State<SplashScreen>
                         child: Text(
                           'KOM IGÅNG',
                           style: GoogleFonts.inter(
-                            color: Colors.white,
+                            color: AppConstants.onGold,
                             fontSize: 13,
                             fontWeight: FontWeight.w600,
                             letterSpacing: 1.2,

@@ -279,7 +279,7 @@ class PortfolioScreen extends ConsumerWidget {
                   _AssetTile(
                     icon: Icons.trending_up_rounded,
                     iconColor: AppConstants.green,
-                    iconBg: const Color(0xFFCDE8DA),
+                    iconBg: AppConstants.returnIconBg,
                     label: 'AVKASTNING',
                     value: fmtSek(goldValue - totalInvested),
                   ),
@@ -386,7 +386,7 @@ class _SubscriptionCard extends StatelessWidget {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
-      backgroundColor: Colors.transparent,
+      backgroundColor: AppConstants.transparent,
       builder: (_) => _EditSheet(sub: sub, onSave: onEdit, onCancel: onCancel),
     );
   }
@@ -483,7 +483,7 @@ class _EditSheetState extends State<_EditSheet> {
     return Container(
       margin: EdgeInsets.only(bottom: bottom),
       decoration: const BoxDecoration(
-        color: Colors.white,
+        color: AppConstants.card,
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
       padding: const EdgeInsets.fromLTRB(20, 12, 20, 32),
@@ -538,7 +538,7 @@ class _EditSheetState extends State<_EditSheet> {
               onPressed: _saving ? null : _save,
               style: ElevatedButton.styleFrom(
                 backgroundColor: AppConstants.gold,
-                foregroundColor: Colors.white,
+                foregroundColor: AppConstants.onGold,
                 elevation: 0,
                 padding: const EdgeInsets.symmetric(vertical: 16),
                 shape: RoundedRectangleBorder(
@@ -550,7 +550,7 @@ class _EditSheetState extends State<_EditSheet> {
                       height: 20,
                       width: 20,
                       child: CircularProgressIndicator(
-                          color: Colors.white, strokeWidth: 2))
+                          color: AppConstants.onGold, strokeWidth: 2))
                   : Text('Spara ändringar',
                       style: GoogleFonts.inter(
                           fontSize: 14, fontWeight: FontWeight.w600)),

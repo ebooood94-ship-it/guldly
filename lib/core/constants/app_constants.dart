@@ -11,12 +11,21 @@ class AppConstants {
   /// Dark gold — pressed states, logo on dark bg.
   static const Color goldDark = Color(0xFF6B4F0F);
 
+  /// White — labels/icons/spinners on gold CTAs.
+  static const Color onGold = Color(0xFFFFFFFF);
+
   // ── Backgrounds ─────────────────────────────────────────────────────────────
   /// Warm parchment — app background.
   static const Color background = Color(0xFFF2EFE9);
 
   /// Pure white — card surfaces.
   static const Color card = Color(0xFFFFFFFF);
+
+  /// Near-black splash canvas (deliberately darker than [black]).
+  static const Color splashBackground = Color(0xFF0F0F0E);
+
+  /// Fully transparent — status-bar overlay, modal-sheet barriers.
+  static const Color transparent = Color(0x00000000);
 
   // ── Text ────────────────────────────────────────────────────────────────────
   /// Near-black warm — primary text, headings.
@@ -53,6 +62,8 @@ class AppConstants {
   static const Color sellIconBg = Color(0xFFE8C4BB);
   static const Color giftIconBg = Color(0xFFCFC2E8);
   static const Color deliveryIconBg = Color(0xFFBDD4E5);
+  /// Soft green tint — return/positive asset-tile icon bg (pairs with [green]).
+  static const Color returnIconBg = Color(0xFFCDE8DA);
 
   // ── Font families ───────────────────────────────────────────────────────────
   /// Playfair Display Italic — hero numbers, screen titles (serif display).
