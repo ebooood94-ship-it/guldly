@@ -133,14 +133,15 @@ class _GiftScreenState extends ConsumerState<GiftScreen> {
     }
     setState(() => _loading = true);
     try {
-      await ref.read(goldTransactionServiceProvider).sendGift(
-            amountSek: _amountSek,
-            goldGrams: _grams,
-            recipientName: name,
-            recipientEmail: email,
-            goldPricePerGramSek: goldPricePerGramSek,
-            isSEKMode: _isSEK,
-          );
+      final giftStatus =
+          await ref.read(goldTransactionServiceProvider).sendGift(
+                amountSek: _amountSek,
+                goldGrams: _grams,
+                recipientName: name,
+                recipientEmail: email,
+                goldPricePerGramSek: goldPricePerGramSek,
+                isSEKMode: _isSEK,
+              );
       if (mounted) {
         final effectiveAmountSek =
             _isSEK ? _amountSek : _grams * goldPricePerGramSek;
@@ -153,6 +154,9 @@ class _GiftScreenState extends ConsumerState<GiftScreen> {
           'goldPricePerGramSek': goldPricePerGramSek,
           'recipientName': name,
           'recipientEmail': email,
+          // 'pending' = recipient has no Guldly account yet; the gold is
+          // held in pending_gifts and delivered when they sign up.
+          'giftStatus': giftStatus,
         });
       }
     } catch (e) {
