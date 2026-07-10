@@ -5,6 +5,7 @@ import '../../../core/constants/app_constants.dart';
 import '../../../core/models/models.dart';
 import '../../../core/providers/providers.dart';
 import '../../widgets/common/back_header.dart';
+import '../../widgets/common/info_banner.dart';
 import '../../widgets/common/section_label.dart';
 
 class NotificationsScreen extends ConsumerWidget {
@@ -61,29 +62,39 @@ class _NotifBody extends ConsumerWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const SectionLabel('PUSH-NOTISER'),
+        // Honest state: none of these channels deliver yet — there is no
+        // push (FCM/APNs), email, or SMS integration. The toggles only
+        // persist a preference to notification_preferences, which will be
+        // honoured once delivery is built. See NotificationService.
+        const InfoBanner(
+          'Aviseringar levereras inte ännu – varken push, e-post eller SMS. '
+          'Dina val sparas och börjar gälla så snart vi aktiverar leverans.',
+          variant: BannerVariant.warning,
+        ),
+        const SizedBox(height: AppConstants.sectionGap),
+        const SectionLabel('PUSH-NOTISER (KOMMER SNART)'),
         _NotifCard(items: [
           _NotifItem(
             'Prisaviseringar',
-            'Få uppdateringar vid prisförändringar',
+            'Prisförändringar och tröskelvärden',
             prefs.pushPriceAlerts,
             (v) => update(prefs.copyWith(pushPriceAlerts: v)),
           ),
           _NotifItem(
             'Transaktionsuppdateringar',
-            'Håll koll på dina transaktioner',
+            'Status för köp, försäljningar och gåvor',
             prefs.pushTransactionUpdates,
             (v) => update(prefs.copyWith(pushTransactionUpdates: v)),
           ),
           _NotifItem(
             'Erbjudanden',
-            'Ta del av kampanjer och erbjudanden',
+            'Kampanjer och erbjudanden',
             prefs.pushPromotions,
             (v) => update(prefs.copyWith(pushPromotions: v)),
           ),
         ]),
         const SizedBox(height: AppConstants.sectionGap),
-        const SectionLabel('E-POSTAVISERINGAR'),
+        const SectionLabel('E-POSTAVISERINGAR (KOMMER SNART)'),
         _NotifCard(items: [
           _NotifItem(
             'Veckorapporter',
@@ -111,7 +122,7 @@ class _NotifBody extends ConsumerWidget {
           ),
         ]),
         const SizedBox(height: AppConstants.sectionGap),
-        const SectionLabel('SMS-AVISERINGAR'),
+        const SectionLabel('SMS-AVISERINGAR (KOMMER SNART)'),
         _NotifCard(items: [
           _NotifItem(
             'Aktivera SMS',
